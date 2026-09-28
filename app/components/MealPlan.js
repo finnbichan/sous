@@ -9,7 +9,7 @@ import { useTheme } from '@react-navigation/native';
 
 const showNoRecipe = (meal_name) => Alert.alert(
     'Nothing to suggest',
-    `You don't have any ${meal_name.toLowerCase()} recipes yet. Add one from the Recipes tab.`
+    `None of your ${meal_name.toLowerCase()} recipes fit your preferences. Add one from the Recipes tab or check Profile & Preferences.`
 );
 
 const showPlanError = () => Alert.alert('Something went wrong', 'Please check your connection and try again.');
