@@ -12,28 +12,45 @@ const ConfirmOTP = ({ route }) => {
   const [OTP, setOTP] = useState('');
   const [loading, setLoading] = useState(false);
   const { email } = route.params;
+  const [errorMessage, setErrorMessage] = useState('');
+
   const submitOTP = async () => {
+    const token = OTP.trim();
+    if (!token) {
+      setErrorMessage('Please enter the code from your email.');
+      return;
+    }
+    setErrorMessage('');
     setLoading(true)
-    await supabase.auth.verifyOtp({
+    // On success the auth listener in App.js switches to the signed-in screens.
+    const { error } = await supabase.auth.verifyOtp({
       email: email,
-      token: OTP,
+      token: token,
       type: 'email'
     })
-    .then((data) => {console.log("success", data)})
-    .catch((error) => {console.log("error", error)})
-    .finally(() => {setLoading(false)})
+    setLoading(false)
+    if (error) {
+      console.log(error)
+      setErrorMessage('That code is incorrect or has expired. Check your email or go back to request a new one.')
+    }
   }
-  console.log(email)
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <AppHeaderText>Confirm your one time password</AppHeaderText>
-        <AppText>We've sent a one time password to {email}. Type it in below to get cooking.</AppText>
+        <AppHeaderText>Check your email</AppHeaderText>
+        <AppText>We've sent a code to {email}. Type it in below to get cooking.</AppText>
         <FLTextInput
         id="otp"
-        label="Password"
+        label="Code"
         onChangeTextProp={(text) => setOTP(text)}
+        multiline={false}
+        keyboardType="number-pad"
+        autoComplete="one-time-code"
+        textContentType="oneTimeCode"
+        returnKeyType="go"
+        onSubmitEditing={submitOTP}
         />
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         { loading ? <ActivityIndicator/>
         : (
         <AppButton

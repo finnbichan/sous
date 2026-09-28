@@ -9,6 +9,7 @@ import FloatingDrawerButton from '../components/FloatingDrawerButton';
 import CollapsibleSection from '../components/CollapsibleSection';
 import MealPlan from '../components/MealPlan';
 import MealPlanSummary from '../components/MealPlanSummary';
+import { formatLocalDate } from '../utils/dates';
 
 const mealHistoryStyles = StyleSheet.create({
     parentDateContainer: {
@@ -20,13 +21,6 @@ const mealHistoryStyles = StyleSheet.create({
         marginLeft: '-10'
     }
 });
-
-const formatLocalDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
 
 const buildDateRange = (startDate, endDate) => {
     const dates = [];

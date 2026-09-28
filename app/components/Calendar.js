@@ -8,6 +8,7 @@ import MealPlanSummary from './MealPlanSummary';
 import { AuthContext, CacheContext } from '../../Contexts';
 import { useTheme } from '@react-navigation/native';
 import useStyles from '../styles/Common';
+import { nextDays, parseLocalDate, todayLocal } from '../utils/dates';
 
 
 const calendarStyles = StyleSheet.create({
@@ -26,22 +27,12 @@ const Calendar = ({navigation}) => {
     const [loading, setLoading] = useState(true);
     const [plannedRecipes, setPlannedRecipes] = useState([]);
     const { cache } = useContext(CacheContext);
-    const todaysDate = new Date();
     const session = useContext(AuthContext);
     const {colours} = useTheme();
     const styles = useStyles();
 
-    const createDateArray = () => {
-        let dateArray = [];
-        for(let i = 0; i < 14; i++){
-            let date = new Date() 
-            date.setDate(todaysDate.getDate() + i)
-            dateArray.push(date.toISOString().slice(0,10))
-        }
-        return dateArray
-    }
-
     const addPlannedRecipe = (newRecipe) => {
+        if (!newRecipe) return;
         setPlannedRecipes(prevState => {
             const newState = [...prevState, newRecipe];
             return newState;
@@ -60,7 +51,8 @@ const Calendar = ({navigation}) => {
         addPlannedRecipe(newRecipe);
     }
 
-    const dateArray = createDateArray();
+    const dateArray = nextDays(14);
+    const today = dateArray[0];
 
     useEffect(() => {
         setLoading(true);
@@ -78,14 +70,15 @@ const Calendar = ({navigation}) => {
             setLoading(false);
         }
         getPlannedRecipes()
-    }, [cache]) 
+ 
+    }, [cache, today])
 
     const renderDate = (mealdate) => {
-        const mealdateDateObject = new Date(mealdate);
+        const mealdateDateObject = parseLocalDate(mealdate);
         const daysOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const day = daysOfTheWeek[mealdateDateObject.getDay()];
         const date = mealdateDateObject.toDateString().slice(4, 10);
-        const isTodaysMeal = mealdate === todaysDate.toISOString().slice(0,10)
+        const isTodaysMeal = mealdate === todayLocal()
         const breakfast = plannedRecipes.find(({date, meal_type}) => date === mealdate && meal_type === 1)
         const lunch = plannedRecipes.find(({date, meal_type}) => date === mealdate && meal_type === 2)
         const dinner = plannedRecipes.find(({date, meal_type}) => date === mealdate && meal_type === 3)

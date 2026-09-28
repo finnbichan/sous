@@ -170,7 +170,13 @@ const Styles = (props) => StyleSheet.create({
     marginTop: 10
   },
   lowImpactText: {
-    color: props.colours.secondaryText 
+    color: props.colours.secondaryText
+  },
+  errorText: {
+    color: '#b22222',
+    alignSelf: 'flex-start',
+    marginHorizontal: 12,
+    marginTop: 8
   },
   deleteButton: {
     backgroundColor: props.colours.background,

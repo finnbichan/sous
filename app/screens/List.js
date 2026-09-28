@@ -3,7 +3,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useState, useRef } 
 import useStyles from '../styles/Common';
 import Checkbox from '../components/Checkbox';
 import { supabase } from '../../supabase';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useIsFocused } from '@react-navigation/native';
 import AppHeaderText from '../components/AppHeaderText';
 import { AuthContext, CacheContext } from '../../Contexts';
 import GenerateListModal from '../components/GenerateListModal';
@@ -22,6 +22,8 @@ const List = ({ route }) => {
     const [listsByType, setListsByType] = useState({});
     const [selectedListType, setSelectedListType] = useState('Personal');
     const [isPremium, setIsPremium] = useState(false);
+    const [sharedWith, setSharedWith] = useState(null);
+    const isFocused = useIsFocused();
     const [loadingItems, setLoadingItems] = useState(false);
     const sectionListRef = useRef(null);
     const session = useContext(AuthContext);
@@ -59,6 +61,16 @@ const List = ({ route }) => {
         sectionHeader: {
             paddingTop: 16,
             paddingBottom: 6
+        },
+        completedHeader: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+        },
+        clearText: {
+            color: colours.secondaryText,
+            fontSize: 14,
+            paddingHorizontal: 4
         },
         sectionTitle: {
             color: colours.secondaryText,
@@ -183,10 +195,12 @@ const List = ({ route }) => {
         setLoadingItems(false);
     }, [session?.user?.id, currentList?.id]);
 
+    const sharingAvailable = isPremium || Boolean(sharedWith);
+
     const listOptions = useMemo(() => ([
         { id: 'Personal', label: 'Personal' },
-        { id: 'Shared', label: 'Shared', disabled: !isPremium }
-    ]), [isPremium]);
+        { id: 'Shared', label: 'Shared', disabled: !sharingAvailable }
+    ]), [sharingAvailable]);
 
     const getPremiumStatus = useCallback(async () => {
         if (!session?.user?.id) {
@@ -210,46 +224,8 @@ const List = ({ route }) => {
         return premiumStatus;
     }, [session?.user?.id]);
 
-    const getOrCreateList = useCallback(async (name) => {
-        if (!session?.user?.id) {
-            return null;
-        }
-
-        // Try to get existing list first.
-        const { data: existingList, error: getError } = await supabase
-            .from('lists')
-            .select('*')
-            .eq('owner_id', session.user.id)
-            .eq('name', name)
-            .single();
-
-        if (existingList) {
-            return existingList;
-        }
-
-        if (getError && getError.code !== 'PGRST116') {
-            console.log(`Error fetching ${name} list:`, getError);
-            return null;
-        }
-
-        // Create list if it doesn't exist.
-        const { data: newList, error: createError } = await supabase
-            .from('lists')
-            .insert([{
-                owner_id: session.user.id,
-                name
-            }])
-            .select()
-            .single();
-
-        if (createError) {
-            console.log(`Error creating ${name} list:`, createError);
-            return null;
-        }
-
-        return newList;
-    }, [session?.user?.id]);
-
+    // Personal list, plus either the shared list you've joined or your own Shared list.
+    // The server creates any list that doesn't exist yet.
     const loadLists = useCallback(async () => {
         if (!session?.user?.id) {
             return;
@@ -257,20 +233,22 @@ const List = ({ route }) => {
 
         void getPremiumStatus();
 
-        const [personalList, sharedList] = await Promise.all([
-            getOrCreateList('Personal'),
-            getOrCreateList('Shared')
-        ]);
+        const { data, error } = await supabase.rpc('get_my_lists');
+        if (error) {
+            console.log('Error loading lists:', error);
+            return;
+        }
 
-        setListsByType({
-            Personal: personalList,
-            Shared: sharedList
-        });
-    }, [getOrCreateList, getPremiumStatus, session?.user?.id]);
+        const byKind = Object.fromEntries((data || []).map((list) => [list.kind, list]));
+        setListsByType(byKind);
+        setSharedWith(byKind.Shared?.shared_with || null);
+    }, [getPremiumStatus, session?.user?.id]);
 
     useEffect(() => {
-        loadLists();
-    }, [loadLists, route.params?.action, cache]);
+        if (isFocused) {
+            loadLists();
+        }
+    }, [loadLists, route.params?.action, cache, isFocused]);
 
     useEffect(() => {
         const list = listsByType[selectedListType];
@@ -280,10 +258,10 @@ const List = ({ route }) => {
     }, [listsByType, selectedListType]);
 
     useEffect(() => {
-        if (!isPremium && selectedListType === 'Shared') {
+        if (!sharingAvailable && selectedListType === 'Shared') {
             setSelectedListType('Personal');
         }
-    }, [isPremium, selectedListType]);
+    }, [sharingAvailable, selectedListType]);
 
     useEffect(() => {
         if (currentList?.id) {
@@ -411,7 +389,6 @@ const List = ({ route }) => {
 
         setItems((currentItems) => [...currentItems, optimisticItem]);
         setNewListItem('');
-console.log(currentList.id);
         const { data, error } = await supabase.rpc('add_list_item', {
             p_item: itemName,
             p_quantity: 1,
@@ -477,6 +454,36 @@ console.log(currentList.id);
             listItem.id === id ? { ...listItem, quantity: nextQuantity } : listItem
         )));
         void persistItemUpdate(id, { quantity: nextQuantity }, rollbackItems);
+    };
+
+    const onClearCompleted = async () => {
+        const completedIds = items
+            .filter((item) => item.checked && !String(item.id).startsWith('temp-'))
+            .map((item) => item.id);
+        if (completedIds.length === 0) {
+            return;
+        }
+
+        const rollbackItems = items;
+        setItems((currentItems) => currentItems.filter((item) => !completedIds.includes(item.id)));
+
+        // RLS only lets users delete items they added; keep any that weren't deleted.
+        const { data, error } = await supabase
+            .from('list_items')
+            .delete()
+            .in('id', completedIds)
+            .select('id');
+
+        if (error) {
+            console.log('Error clearing completed items:', error);
+            setItems(rollbackItems);
+            return;
+        }
+
+        const deletedIds = new Set((data || []).map((row) => row.id));
+        if (deletedIds.size < completedIds.length) {
+            setItems(rollbackItems.filter((item) => !deletedIds.has(item.id)));
+        }
     };
 
     const sections = useMemo(() => {
@@ -569,11 +576,21 @@ console.log(currentList.id);
                 onPress={() => isCollapsible && setCompletedExpanded(!completedExpanded)}
                 disabled={!isCollapsible}
             >
-                <View style={listStyles.sectionHeader}>
+                <View style={[listStyles.sectionHeader, isCollapsible && listStyles.completedHeader]}>
                     <Text style={listStyles.sectionTitle}>
                         {isCollapsible && (completedExpanded ? '▼ ' : '▶ ')}
                         {section.title}
                     </Text>
+                    {isCollapsible ? (
+                        <TouchableOpacity
+                            onPress={onClearCompleted}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear completed items"
+                            hitSlop={8}
+                        >
+                            <Text style={listStyles.clearText}>Clear</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
             </TouchableOpacity>
         );
@@ -600,6 +617,11 @@ console.log(currentList.id);
                             />
                         </TouchableOpacity>
                     </View>
+                    {selectedListType === 'Shared' && sharedWith ? (
+                        <Text style={[styles.lowImpactText, { alignSelf: 'flex-start', paddingHorizontal: 12 }]}>
+                            Shared with {sharedWith}
+                        </Text>
+                    ) : null}
                     {loadingItems ? (
                         <View style={[listStyles.emptyState, { paddingTop: 80 }]}>
                             <ActivityIndicator size="large" color={colours.text} />

@@ -6,7 +6,7 @@ import FloatingDrawerButton from '../components/FloatingDrawerButton';
 import AppButton from '../components/AppButton';
 import AppHeaderText from '../components/AppHeaderText';
 import { useTheme } from '@react-navigation/native';
-import { AuthContext } from '../../Contexts';
+import { CacheContext } from '../../Contexts';
 
 const Settings = () => {
     const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -14,9 +14,17 @@ const Settings = () => {
     const [emailError, setEmailError] = useState('');
     const [invites, setInvites] = useState([]);
     const [loadingInvites, setLoadingInvites] = useState(false);
+    const [sharingError, setSharingError] = useState('');
+    const [sharingBusy, setSharingBusy] = useState(false);
+    const { setCache } = useContext(CacheContext);
     const { colours } = useTheme();
     const styles = useStyles();
-    const session = useContext(AuthContext);
+
+    // status: 0 = pending, 1 = accepted (get_invites only returns these)
+    const activeShare = invites.find(inv => inv.status === 1);
+    const receivedInvites = invites.filter(inv => inv.status === 0 && !inv.is_sender);
+    const sentInvites = invites.filter(inv => inv.status === 0 && inv.is_sender);
+    const isSharing = Boolean(activeShare);
 
     const validateEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,7 +35,6 @@ const Settings = () => {
         setLoadingInvites(true);
         try {
             const { data, error } = await supabase.rpc('get_invites');
-            console.log('Fetched invites:', data);
             if (error) {
                 console.error('Error fetching invites:', error);
             } else {
@@ -43,49 +50,21 @@ const Settings = () => {
         fetchInvites();
     }, []);
 
-    const handleAcceptInvite = async (inviteId) => {
-        try {
-            const { error } = await supabase.rpc('accept_invite', {
-                p_invite_id: inviteId
-            });
-            if (error) {
-                console.error('Error accepting invite:', error);
-            } else {
-                await fetchInvites();
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
+    // accept_invite / reject_invite / remove_sharing all take the invite id
+    const runSharingAction = async (rpc, inviteId) => {
+        if (sharingBusy) return;
+        setSharingBusy(true);
+        setSharingError('');
+        const { error } = await supabase.rpc(rpc, { p_invite_id: inviteId });
+        if (error) {
+            console.error(`Error calling ${rpc}:`, error);
+            setSharingError('Something went wrong. Please try again.');
+        } else {
+            // lists changed: make the List screen reload
+            setCache(Date.now());
         }
-    };
-
-    const handleRejectInvite = async (inviteId) => {
-        try {
-            const { error } = await supabase.rpc('reject_invite', {
-                p_invite_id: inviteId
-            });
-            if (error) {
-                console.error('Error rejecting invite:', error);
-            } else {
-                await fetchInvites();
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
-        }
-    };
-
-    const handleRemoveSharing = async (userId) => {
-        try {
-            const { error } = await supabase.rpc('remove_sharing', {
-                p_user_id: userId
-            });
-            if (error) {
-                console.error('Error removing sharing:', error);
-            } else {
-                await fetchInvites();
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
-        }
+        await fetchInvites();
+        setSharingBusy(false);
     };
 
     const handleInvitePress = async () => {
@@ -100,8 +79,8 @@ const Settings = () => {
         }
         
         try {
-            const { data, error } = await supabase.rpc('invite_user_by_email', {
-                p_email: inviteEmail
+            const { error } = await supabase.rpc('invite_user_by_email', {
+                p_email: inviteEmail.trim()
             });
             
             if (error) {
@@ -110,9 +89,9 @@ const Settings = () => {
                 return;
             }
             
-            console.log('User invited successfully:', data);
             setInviteEmail('');
             setInviteModalOpen(false);
+            await fetchInvites();
         } catch (err) {
             console.error('Unexpected error:', err);
             setEmailError('An unexpected error occurred');
@@ -271,52 +250,74 @@ const Settings = () => {
                         <ActivityIndicator size="large" color={colours.text} style={{ marginVertical: 20 }} />
                     ) : (
                         <>
-                            {/* Pending Invites */}
-                            {invites.filter(inv => inv.status === 0).map((invite) => (
+                            {/* Active share */}
+                            {activeShare ? (
+                                <View style={settingsStyles.inviteCard}>
+                                    <Text style={settingsStyles.inviteMessage}>
+                                        You are sharing a list with {activeShare.other_name}
+                                    </Text>
+                                    <Pressable
+                                        style={[settingsStyles.smallButton, { borderColor: '#EF4444' }]}
+                                        onPress={() => runSharingAction('remove_sharing', activeShare.invite_id)}
+                                        disabled={sharingBusy}
+                                    >
+                                        <Text style={[settingsStyles.smallButtonText, { color: '#EF4444' }]}>Stop sharing</Text>
+                                    </Pressable>
+                                </View>
+                            ) : null}
+
+                            {/* Invites received */}
+                            {receivedInvites.map((invite) => (
                                 <View key={invite.invite_id} style={settingsStyles.inviteCard}>
                                     <Text style={settingsStyles.inviteMessage}>
-                                        {invite.sender_name} has invited you to their list
+                                        {invite.other_name} has invited you to their shared list
                                     </Text>
                                     <View style={settingsStyles.inviteButtonRow}>
                                         <Pressable
                                             style={[settingsStyles.smallButton, { borderColor: '#4CAF50' }]}
-                                            onPress={() => handleAcceptInvite(invite.id)}
+                                            onPress={() => runSharingAction('accept_invite', invite.invite_id)}
+                                            disabled={sharingBusy || isSharing}
                                         >
                                             <Text style={[settingsStyles.smallButtonText, { color: '#4CAF50' }]}>Accept</Text>
                                         </Pressable>
                                         <Pressable
                                             style={[settingsStyles.smallButton, { borderColor: '#EF4444' }]}
-                                            onPress={() => handleRejectInvite(invite.id)}
+                                            onPress={() => runSharingAction('reject_invite', invite.invite_id)}
+                                            disabled={sharingBusy}
                                         >
                                             <Text style={[settingsStyles.smallButtonText, { color: '#EF4444' }]}>Reject</Text>
                                         </Pressable>
                                     </View>
                                 </View>
                             ))}
-                            
-                            {/* Accepted Invites */}
-                            {invites.filter(inv => inv.status === 1).map((invite) => (
+
+                            {/* Invites sent */}
+                            {sentInvites.map((invite) => (
                                 <View key={invite.invite_id} style={settingsStyles.inviteCard}>
                                     <Text style={settingsStyles.inviteMessage}>
-                                        You are sharing with {invite.sender_name}
+                                        Invite sent to {invite.other_name}
                                     </Text>
                                     <Pressable
                                         style={[settingsStyles.smallButton, { borderColor: '#EF4444' }]}
-                                        onPress={() => handleRemoveSharing(invite.invited_by_user_id)}
+                                        onPress={() => runSharingAction('remove_sharing', invite.invite_id)}
+                                        disabled={sharingBusy}
                                     >
-                                        <Text style={[settingsStyles.smallButtonText, { color: '#EF4444' }]}>Remove</Text>
+                                        <Text style={[settingsStyles.smallButtonText, { color: '#EF4444' }]}>Cancel invite</Text>
                                     </Pressable>
                                 </View>
                             ))}
                         </>
                     )}
                     
+                    {sharingError ? (
+                        <Text style={[styles.errorText, { marginBottom: 8 }]}>{sharingError}</Text>
+                    ) : null}
                     <Pressable
                         onPress={() => setInviteModalOpen(true)}
-                        disabled={invites.some(inv => inv.status === 'accepted')}
-                        style={invites.some(inv => inv.status === 'accepted') ? settingsStyles.sharingButtonDisabled : settingsStyles.sharingButton}
+                        disabled={isSharing}
+                        style={isSharing ? settingsStyles.sharingButtonDisabled : settingsStyles.sharingButton}
                     >
-                        <Text style={invites.some(inv => inv.status === 'accepted') ? settingsStyles.sharingButtonTextDisabled : settingsStyles.sharingButtonText}>
+                        <Text style={isSharing ? settingsStyles.sharingButtonTextDisabled : settingsStyles.sharingButtonText}>
                             Invite a user to share
                         </Text>
                     </Pressable>

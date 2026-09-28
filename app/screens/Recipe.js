@@ -11,9 +11,9 @@ import EditButton from '../components/EditButton';
 import CollapsibleSection from '../components/CollapsibleSection';
 import AppText from '../components/AppText';
 import BackButton from '../components/BackButton';
+import { mealTypeName, toTextList, labelFor } from '../utils/recipes';
 
 const Recipe = ({route, navigation}) => {
-    console.log(route.params.recipe);
     const [recipe, setRecipe] = useState(route.params.recipe);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -22,35 +22,19 @@ const Recipe = ({route, navigation}) => {
     const isOwnRecipe = recipe.user_id == session.user.id;
     const { assets, colours } = useTheme();
     const styles = useStyles();
-    const mealTypeList = [
-        {id: 1, name: "Breakfast"},
-        {id: 2, name: "Lunch"},
-        {id: 3, name: "Dinner"}
-    ];
-        
-    //FIX for new recipes.
+    const ingredients = toTextList(recipe.ingredients);
+    const steps = toTextList(recipe.steps);
+    const mealNames = (recipe.meals || []).map(mealTypeName).filter(Boolean);
+
     const getCreatorName = async () => {
-        console.log(recipe.user_id)
         const {data, error} = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', recipe.user_id)
+        .rpc('get_public_profiles', {p_ids: [recipe.user_id]})
         if (error) {
             console.log(error)
         } else {
-            setCreatorName(data[0].display_name)
+            setCreatorName(data[0]?.display_name ?? "")
         }
     }
-
-     useEffect(() => {
-        if(isOwnRecipe) {
-            navigation.setOptions({
-                headerRight: () => (
-                    <EditButton nav={navigation} target={"Add a recipe"} params={{prevScreen: "Recipe", recipe: recipe}}/>
-                )
-                });
-            }
-      }, [navigation, recipe]);
 
     useEffect(() => {
         if(!isOwnRecipe) {
@@ -112,9 +96,11 @@ const Recipe = ({route, navigation}) => {
                 <View style={{borderRadius: 100, backgroundColor: colours.card, padding: 4}}>
                     <BackButton nav={navigation} route={route}/>
                 </View>
+                {isOwnRecipe ? (
                 <View style={{borderRadius: 100, backgroundColor: colours.card, padding: 4}}>
-                    <EditButton nav={navigation} target={"Add a recipe"} params={{prevScreen: "Recipe", recipe: route.params.recipe}}/>
+                    <EditButton nav={navigation} target={"Add a recipe"} params={{prevScreen: "Recipe", recipe: recipe}}/>
                 </View>
+                ) : null}
             </View>
             {recipe.image_uri ? (
                 <Image
@@ -129,22 +115,22 @@ const Recipe = ({route, navigation}) => {
             </View>
             <View style={[styles.descriptorsParent, {marginLeft: 8}]}>
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{easeList[recipe.ease].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(easeList, recipe.ease)}</Text>
                     </View>
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{cuisineList[recipe.cuisine].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(cuisineList, recipe.cuisine)}</Text>
                     </View>
                     {recipe.diet == 0 ? (<></>):(
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{dietList[recipe.diet].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(dietList, recipe.diet)}</Text>
                     </View>
                 )}
             </View>
             <View>
-                {recipe.desc ? (
+                {recipe.description ? (
                     <FLTextInput
                     editable={false}
-                    defaultValue={recipe.desc}
+                    defaultValue={recipe.description}
                     label="Description"
                     />
                 ) : (
@@ -153,13 +139,13 @@ const Recipe = ({route, navigation}) => {
                 }
             </View>
             <View style={{flexDirection: 'row'}}>
-            {recipe.meals.map((x, i)=> {
+            {mealNames.map((name)=> {
             return (
                 <View
                 style={[styles.multiItemContainer, {backgroundColor: '#00AEFF', alignSelf: 'flex-start'}]}
-                key={i}
+                key={name}
                 >
-                    <Text style={styles.text}>{mealTypeList.find(e => e.id == x).name}</Text>
+                    <Text style={styles.text}>{name}</Text>
                 </View>
             )
             })}
@@ -167,14 +153,14 @@ const Recipe = ({route, navigation}) => {
             {//TODO make collapsible
             }
             <View>
-                {recipe.ingredients ? (
+                {ingredients ? (
                 <CollapsibleSection
                 title={<AppText>Ingredients</AppText>}
                 open={false}
                 childrenIfOpen={
                 <Steps
                 editable={false}
-                steps={recipe.ingredients}
+                steps={ingredients}
                 />}
                 childrenIfClosed={<></>}
                 />
@@ -183,10 +169,10 @@ const Recipe = ({route, navigation}) => {
                 )}
             </View>
             <View>
-                {recipe.steps ? (
+                {steps ? (
                 <Steps
                 editable={false}
-                steps={recipe.steps}
+                steps={steps}
                 />
                 ) : (
                     <Text style={[styles.lowImpactText, {margin: 8}]}>No steps added</Text>

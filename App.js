@@ -1,10 +1,10 @@
 import { supabase } from './supabase';
-import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator, DrawerToggleButton} from '@react-navigation/drawer';
 import { HeaderBackButton } from '@react-navigation/elements';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Image, useColorScheme } from 'react-native';
+import { Image, useColorScheme, View, ActivityIndicator } from 'react-native';
 import { useState, useEffect, createContext, useContext } from 'react';
 import Home from './app/screens/Home';
 import Onboarding from './app/screens/Onboarding';
@@ -25,9 +25,21 @@ import RightHeaderButton from './app/components/RightHeaderButton';
 import * as SplashScreen from 'expo-splash-screen';
 import { LightTheme, CustomDarkTheme } from './app/styles/Colours';
 import { useTheme } from '@react-navigation/native';
-import { BackHandler } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
+
+const PROFILE_TIMEOUT_MS = 10000;
+
+// React Navigation 7 removed the unmountOnBlur option. These screens keep their
+// form/recipe state in useState initialised from params, so they must remount
+// each time they are opened or they show the previous recipe.
+function unmountOnBlur(Component) {
+  return function UnmountOnBlur(props) {
+    return useIsFocused() ? <Component {...props} /> : null;
+  };
+}
+const RecipeScreen = unmountOnBlur(Recipe);
+const AddOrEditRecipeScreen = unmountOnBlur(AddOrEditUserRecipe);
 
 const Stack = createNativeStackNavigator();
 
@@ -84,6 +96,7 @@ function TabsStack() {
   const { assets, colours } = useTheme();
   return (
     <MainAppTabs.Navigator
+    backBehavior="history"
     screenOptions={{
       animation: 'shift',
       headerShown: false,
@@ -139,15 +152,13 @@ function TabsStack() {
         }
       }}
       />
-      <MainAppTabs.Screen name="Add a recipe" component={AddOrEditUserRecipe} options={{
+      <MainAppTabs.Screen name="Add a recipe" component={AddOrEditRecipeScreen} options={{
         tabBarButton: () => null,
-        tabBarItemStyle: { display: 'none' },
-        unmountOnBlur: true
+        tabBarItemStyle: { display: 'none' }
       }} />
-      <MainAppTabs.Screen name="Recipe" component={Recipe} options={{
+      <MainAppTabs.Screen name="Recipe" component={RecipeScreen} options={{
         tabBarButton: () => null,
-        tabBarItemStyle: { display: 'none' },
-        unmountOnBlur: true
+        tabBarItemStyle: { display: 'none' }
       }} />
       <MainAppTabs.Screen name="List" component={List} options={{
         tabBarIcon: ({focused}) => {
@@ -183,20 +194,6 @@ function LoggedInStack({ route }) {
 function MainStack() {
   const { assets, colours } = useTheme();
   const [cache, setCache] = useState();
-  const route = useRoute();
-  const navigation = useNavigation();
-
-
-  function handleBack() {
-    const prevScreen = route.params?.prevScreen || 'Home';
-    console.log(route.params)
-    navigation.navigate(prevScreen)
-  }
-
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBack)
-    return () => backHandler.remove()
-  }, [])
 
   return (
     <CacheContext.Provider value={{cache, setCache}}>
@@ -246,48 +243,85 @@ function LogoTitle() {
 }
 
 export default function App() {
-  const [appIsReady, setAppIsReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [profileLoadedFor, setProfileLoadedFor] = useState(null);
   const [isNewUser, setIsNewUser] = useState(false);
   const scheme = useColorScheme();
+  const userId = session?.user?.id;
 
-  console.log(scheme)
-  
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
+    // Keep this callback synchronous: it runs inside supabase-js's auth lock, and
+    // awaiting another Supabase call here can deadlock (the app then never leaves
+    // the splash screen). The profile is loaded in the effect below instead.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
         setSession(null)
         setProfile(null)
+        setProfileLoadedFor(null)
         setIsNewUser(false)
-      } else if (session) {
-        const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name, avatar_url, dietary, allergies, dislikes, portion_size')
-        .eq('id', session.user.id)
-        .single()
-
-        if (!profile?.display_name) {
-          setIsNewUser(true)
-        } else {
-          setIsNewUser(false)
-        }
-
-        setProfile(profile)
+      } else {
         setSession(session)
       }
-
-      setAppIsReady(true)
+      setAuthReady(true)
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (appIsReady) SplashScreen.hide() 
+    if (!userId) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROFILE_TIMEOUT_MS);
+
+    const loadProfile = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name, avatar_url, dietary, allergies, dislikes, portion_size')
+        .eq('id', userId)
+        .abortSignal(controller.signal)
+        .maybeSingle()
+      clearTimeout(timeout)
+      if (cancelled) return;
+
+      if (error) {
+        // Offline, timed out or backend unavailable. Don't treat an existing user
+        // as new: onboarding would overwrite their saved preferences.
+        console.log('Error fetching profile:', error)
+        setIsNewUser(false)
+        setProfile(null)
+      } else {
+        setIsNewUser(!data?.display_name)
+        setProfile(data)
+      }
+      setProfileLoadedFor(userId)
+    }
+    loadProfile()
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [userId])
+
+  const appIsReady = authReady && (!userId || profileLoadedFor === userId);
+
+  useEffect(() => {
+    if (appIsReady) SplashScreen.hide()
   }, [appIsReady])
 
-  if (!appIsReady) return null;
+  if (!appIsReady) {
+    // Splash is still up on cold start; this covers signing in after the OTP step.
+    return authReady ? (
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: scheme === 'dark' ? CustomDarkTheme.colours.background : LightTheme.colours.background }}>
+        <ActivityIndicator size="large" />
+      </View>
+    ) : null;
+  }
 
   return (
     <AuthContext.Provider value={session}>

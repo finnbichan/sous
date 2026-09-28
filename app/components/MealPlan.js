@@ -1,11 +1,18 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { styles } from '../styles/Common';
 import { supabase } from '../../supabase';
 import { AuthContext } from '../../Contexts';
 import RecipeBase from './RecipeBase';
 import SearchModal from './SearchModal';
 import { useTheme } from '@react-navigation/native';
+
+const showNoRecipe = (meal_name) => Alert.alert(
+    'Nothing to suggest',
+    `You don't have any ${meal_name.toLowerCase()} recipes yet. Add one from the Recipes tab.`
+);
+
+const showPlanError = () => Alert.alert('Something went wrong', 'Please check your connection and try again.');
 
 const MealPlanStyles = (props) => StyleSheet.create({
     container: {
@@ -83,12 +90,14 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
     const suggestRecipe = async (meal_type, date, user_id) => {
         setNewMealLoading(true);
         const {data, error} = await supabase.rpc('suggest_recipe', {p_mealtype: meal_type, p_date:date, p_user_id: user_id})
+        setNewMealLoading(false);
         if (error) {
             console.log(error);
-            setNewMealLoading(false);
-        } else { 
+            showPlanError();
+        } else if (!data) {
+            showNoRecipe(meal_name);
+        } else {
             addPlannedRecipe(data);
-            setNewMealLoading(false);
         }
     }
 
@@ -96,13 +105,12 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
         setNewMealLoading(true);
         const {data, error} = await supabase.rpc('add_single_planned_recipe', 
             {p_mealtype: meal_type, p_date:date, p_user_id: session.user.id, p_recipe_id: recipe.recipe_id})
-        if (error) {
+        setNewMealLoading(false);
+        if (error || !data) {
             console.log(error);
-            setNewMealLoading(false);
+            showPlanError();
         } else {
-            console.log(data.id, "data", data)
             addPlannedRecipe(data);
-            setNewMealLoading(false);
         }
     }
 
@@ -156,39 +164,38 @@ const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, date, plann
     const { assets } = useTheme();
     const mealPlanStyles = useMealPlanStyles();
     const deactivatePlannedRecipe = async () => {
-        console.log(plannedrecipe_id)
         setLoading(true)
-        const {data, error} = await supabase
+        const {error} = await supabase
         .from('plannedrecipes')
         .update({active: false})
         .eq('id', plannedrecipe_id)
         if (error) {
             console.log("error", error);
+            showPlanError();
         } else {
-            console.log("data", data, plannedrecipe_id)
             deletePlannedRecipe(plannedrecipe_id);
         }
         setLoading(false);
     }
-    //TODO reduce repetition in functions
     const rerollRecipe = async (meal_type, date, user_id, plannedrecipe_id) => {
         setLoading(true)
-        //deactivate existing recipe
-        const {data: delete_data, error: delete_error} = await supabase
-        .from('plannedrecipes')
-        .update({active: false})
-        .eq('id', plannedrecipe_id)
-        if (delete_error) {
-            console.log("error", delete_error);
-        } else { 
-            //generate new recipe
-            const { data: suggest_data, error: suggest_error } = await supabase.rpc('suggest_recipe', {p_mealtype: meal_type, p_date:date, p_user_id: user_id})
-            if (suggest_error) {
-                console.log(suggest_error);
-            } else {
-                rerollPlannedRecipe(suggest_data, plannedrecipe_id);
+        // Suggest first so a failed or empty suggestion leaves the current meal in place.
+        const { data: suggest_data, error: suggest_error } = await supabase.rpc('suggest_recipe', {p_mealtype: meal_type, p_date:date, p_user_id: user_id})
+        if (suggest_error) {
+            console.log(suggest_error);
+            showPlanError();
+        } else if (!suggest_data) {
+            showNoRecipe(meal_name);
+        } else {
+            const { error: delete_error } = await supabase
+            .from('plannedrecipes')
+            .update({active: false})
+            .eq('id', plannedrecipe_id)
+            if (delete_error) {
+                console.log("error", delete_error);
             }
-        }       
+            rerollPlannedRecipe(suggest_data, plannedrecipe_id);
+        }
         setLoading(false)
     }
     return (

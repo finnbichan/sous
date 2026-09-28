@@ -185,7 +185,7 @@ const Onboarding = ({ navigation }) => {
                 data={portionSizeOptions}
                 label="Portion size"
                 onSelect={(selected) => setPortionSize(Number(selected.id))}
-                value={portionSize}
+                value={portionSizeOptions.findIndex((option) => option.id === portionSize)}
               />
               <Text style={[onboardingStyles.fieldLabel, { marginBottom: 4}]}>Any allergies?</Text>
               <Ingredients
