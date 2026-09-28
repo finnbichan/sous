@@ -19,12 +19,9 @@ const CalendarHeader = () => {
     else if (time >= 18) {greeting = "Evening"}
     else {greeting = "Afternoon"};
     
-    console.log("profile in header", profile.avatar_url)
-
-
     return (
             <View style={headerStyles.container}>
-                <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8}}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8}}>
                     <AppHeaderText>{profile?.display_name ? `${greeting}, ${profile.display_name}` : greeting}</AppHeaderText>
                     <TouchableOpacity
                     style={headerStyles.accountButton}
@@ -32,8 +29,7 @@ const CalendarHeader = () => {
                     >
                         <Image
                         style={headerStyles.accountImage}
-                        source={profile?.avatar_url ? {uri: profile.avatar_url} : assets.account}
-                        resizeMode="cover"
+                        source={assets.account}
                         />
                     </TouchableOpacity>
                 </View>
