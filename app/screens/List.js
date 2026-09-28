@@ -673,6 +673,8 @@ const List = ({ route }) => {
                 genModalOpen={genModalOpen}
                 setGenModalOpen={setGenModalOpen}
                 onGenerated={getListItems}
+                listId={currentList?.id}
+                listName={selectedListType}
             />
         </SafeAreaView>
     );

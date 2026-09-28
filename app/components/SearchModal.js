@@ -169,6 +169,7 @@ const SearchModal = ( {searchModalOpen, setSearchModalOpen, onSelectRecipe, meal
                                 renderItem={renderSearchResults}
                                 keyExtractor={(item) => item.recipe_id.toString()}
                                 ListEmptyComponent={NoResults}
+                                keyboardShouldPersistTaps="handled"
                                 />
                             : <Text style={styles.lowImpactText}>Type at least 3 characters to search</Text>}
                        </KeyboardAvoidingView>
