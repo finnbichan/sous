@@ -1,4 +1,4 @@
-import { Modal, Pressable, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { Modal, Pressable, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import React, { useState } from 'react';
 import { useTheme } from '@react-navigation/native';
 import AppHeaderText from './AppHeaderText';
@@ -71,6 +71,44 @@ const useSheetStyles = () => {
         error: {
             color: '#b22222',
             marginTop: 8
+        },
+        recipeBox: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: colours.card,
+            borderRadius: 16,
+            paddingVertical: 10,
+            paddingHorizontal: 14
+        },
+        noteBox: {
+            backgroundColor: colours.card,
+            borderRadius: 16,
+            paddingVertical: 14,
+            paddingHorizontal: 14
+        },
+        actionRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            alignItems: 'flex-start'
+        },
+        action: {
+            flex: 1,
+            alignItems: 'center',
+            paddingHorizontal: 2
+        },
+        actionIcon: {
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: colours.card,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 6
+        },
+        actionCaption: {
+            color: colours.text,
+            fontSize: 12,
+            textAlign: 'center'
         }
     });
 };
@@ -78,7 +116,8 @@ const useSheetStyles = () => {
 const QUICK_NOTES = ['Eating out', 'Leftovers', 'Takeaway', 'Skip'];
 
 // Options for one meal slot. `preview` is shown above the actions (the planned
-// recipe or note); each action is { label, onPress, destructive? }.
+// recipe box or note). Actions render as a row of captioned icon buttons:
+// each is { label, icon, onPress, destructive? }.
 export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, onClose }) => {
     const styles = useSheetStyles();
     const { colours } = useTheme();
@@ -91,23 +130,54 @@ export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, o
                 <Pressable style={styles.sheet}>
                     <AppHeaderText>{title}</AppHeaderText>
                     {subtitle ? <Text style={[styles.label, { marginTop: -4, marginLeft: 8 }]}>{subtitle}</Text> : null}
-                    {preview ? <View style={{ marginBottom: 12, marginLeft: 8 }}>{preview}</View> : null}
-                    {actions.map((action) => (
-                        <TouchableOpacity
-                            key={action.label}
-                            style={styles.day}
-                            onPress={action.onPress}
-                            accessibilityRole="button"
-                        >
-                            <Text style={[styles.dayText, action.destructive && { color: '#EF4444' }, action.primary && { color: colours.text, fontWeight: '600' }]}>
-                                {action.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    {preview ? <View style={{ marginBottom: 16 }}>{preview}</View> : null}
+                    <View style={styles.actionRow}>
+                        {actions.map((action) => (
+                            <TouchableOpacity
+                                key={action.label}
+                                style={styles.action}
+                                onPress={action.onPress}
+                                accessibilityRole="button"
+                                accessibilityLabel={action.label}
+                            >
+                                <View style={styles.actionIcon}>
+                                    <Image source={action.icon} style={{ width: 28, height: 28 }} />
+                                </View>
+                                <Text
+                                    style={[styles.actionCaption, action.destructive && { color: '#EF4444' }]}
+                                    numberOfLines={2}
+                                >
+                                    {action.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </Pressable>
             </Pressable>
         </Modal>
     );
+};
+
+// Tappable recipe box for the sheet: opens the recipe.
+export const RecipeLinkBox = ({ children, onPress, label }) => {
+    const styles = useSheetStyles();
+    const { assets } = useTheme();
+    return (
+        <TouchableOpacity
+            style={styles.recipeBox}
+            onPress={onPress}
+            accessibilityRole="link"
+            accessibilityLabel={label}
+        >
+            <View style={{ flex: 1 }}>{children}</View>
+            <Image source={assets.chevron_right} style={{ width: 30, height: 30 }} />
+        </TouchableOpacity>
+    );
+};
+
+export const NoteBox = ({ children }) => {
+    const styles = useSheetStyles();
+    return <View style={styles.noteBox}>{children}</View>;
 };
 
 // Free-text meal, e.g. "Eating out".

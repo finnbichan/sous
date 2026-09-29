@@ -4,7 +4,7 @@ import { supabase } from '../../supabase';
 import { AuthContext } from '../../Contexts';
 import RecipeBase from './RecipeBase';
 import SearchModal from './SearchModal';
-import { NoteModal, MoveModal, MealActionsSheet } from './MealSlotModals';
+import { NoteModal, MoveModal, MealActionsSheet, RecipeLinkBox, NoteBox } from './MealSlotModals';
 import { useTheme } from '@react-navigation/native';
 import { mealTypeName } from '../utils/recipes';
 import { parseLocalDate } from '../utils/dates';
@@ -162,17 +162,19 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
         return true;
     };
 
+    // Move icon is a placeholder (drag handle) until a dedicated one exists.
     const actions = isPlanned ? [
-        recipe && { label: 'View recipe', onPress: openRecipe, primary: true },
-        { label: recipe ? 'Suggest a different recipe' : 'Suggest a recipe instead', onPress: suggest },
-        { label: 'Replace from my recipes', onPress: () => setSheet('search') },
-        { label: note ? 'Change note' : 'Change to a note', onPress: () => setSheet('note') },
-        moveDates?.length && { label: 'Move to another day', onPress: () => setSheet('move') },
-        { label: 'Remove', onPress: remove, destructive: true }
+        recipe
+            ? { label: 'Re-roll', icon: assets.refresh, onPress: suggest }
+            : { label: 'Suggest', icon: assets.bolt, onPress: suggest },
+        { label: 'Replace', icon: assets.search, onPress: () => setSheet('search') },
+        { label: note ? 'Edit note' : 'Note', icon: assets.edit, onPress: () => setSheet('note') },
+        moveDates?.length && { label: 'Move', icon: assets.drag_handle, onPress: () => setSheet('move') },
+        { label: 'Remove', icon: assets.delete, onPress: remove, destructive: true }
     ].filter(Boolean) : [
-        { label: 'Suggest a recipe', onPress: suggest, primary: true },
-        { label: 'Choose from my recipes', onPress: () => setSheet('search') },
-        { label: 'Add a note (e.g. eating out)', onPress: () => setSheet('note') }
+        { label: 'Suggest', icon: assets.bolt, onPress: suggest },
+        { label: 'My recipes', icon: assets.search, onPress: () => setSheet('search') },
+        { label: 'Note', icon: assets.edit, onPress: () => setSheet('note') }
     ];
 
     const onCardPress = () => {
@@ -226,7 +228,13 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
                 visible={sheet === 'actions'}
                 title={meal_name}
                 subtitle={dateLabel}
-                preview={recipe ? <RecipeBase recipe={recipe} /> : note ? <Text style={mealPlanStyles.noteText}>{note}</Text> : null}
+                preview={recipe ? (
+                    <RecipeLinkBox onPress={openRecipe} label={`Open recipe: ${recipe.name}`}>
+                        <RecipeBase recipe={recipe} />
+                    </RecipeLinkBox>
+                ) : note ? (
+                    <NoteBox><Text style={mealPlanStyles.noteText}>{note}</Text></NoteBox>
+                ) : null}
                 actions={actions}
                 onClose={() => setSheet(null)}
             />
