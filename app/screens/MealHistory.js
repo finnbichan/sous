@@ -96,6 +96,10 @@ const MealHistory = ({ navigation }) => {
         return buildDateRange(earliestDate, formatLocalDate(yesterday));
     }, [plannedRecipes]);
 
+    const replacePlanned = (updated) => setPlannedRecipes((current) => current.map((planned) => (
+        planned.plannedrecipe_id === updated.plannedrecipe_id ? updated : planned
+    )));
+
     const renderDate = ({ item: mealdate }) => {
         const mealdateDateObject = new Date(`${mealdate}T00:00:00`);
         const daysOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -123,8 +127,10 @@ const MealHistory = ({ navigation }) => {
                                 date={mealdate}
                                 recipe={breakfast?.recipe || null}
                                 note={breakfast?.note}
+                                rating={breakfast?.rating}
                                 plannedrecipe_id={breakfast?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                             <MealPlan
                                 navigation={navigation}
@@ -132,8 +138,10 @@ const MealHistory = ({ navigation }) => {
                                 date={mealdate}
                                 recipe={lunch?.recipe || null}
                                 note={lunch?.note}
+                                rating={lunch?.rating}
                                 plannedrecipe_id={lunch?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                             <MealPlan
                                 navigation={navigation}
@@ -141,8 +149,10 @@ const MealHistory = ({ navigation }) => {
                                 date={mealdate}
                                 recipe={dinner?.recipe || null}
                                 note={dinner?.note}
+                                rating={dinner?.rating}
                                 plannedrecipe_id={dinner?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                         </View>
                     }

@@ -7,7 +7,7 @@ import SearchModal from './SearchModal';
 import { NoteModal, MoveModal, MealActionsSheet, RecipeLinkBox, NoteBox } from './MealSlotModals';
 import { useTheme } from '@react-navigation/native';
 import { mealTypeName } from '../utils/recipes';
-import { parseLocalDate } from '../utils/dates';
+import { parseLocalDate, todayLocal } from '../utils/dates';
 
 const showNoRecipe = (meal_name) => Alert.alert(
     'Nothing to suggest',
@@ -65,7 +65,9 @@ function useMealPlanStyles() {
 // One meal slot on the calendar. The card opens a sheet with all the options;
 // the only button on the card itself is roll (empty) / re-roll (planned).
 // Read-only (meal history): tapping opens the recipe.
-const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id, addPlannedRecipe, deletePlannedRecipe, rerollPlannedRecipe, editable, moveDates, onPlanChanged }) => {
+// `rating`: 1 loved it, -1 not again, null unrated. `onPlannedChange(updated)` lets
+// a read-only list (meal history) update its copy after a rating.
+const MealPlan = ({ navigation, meal_type, date, recipe, note, rating, plannedrecipe_id, addPlannedRecipe, deletePlannedRecipe, rerollPlannedRecipe, editable, moveDates, onPlanChanged, onPlannedChange }) => {
     const session = useContext(AuthContext);
     const { assets } = useTheme();
     const mealPlanStyles = useMealPlanStyles();
@@ -75,6 +77,8 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
 
     const meal_name = mealTypeName(meal_type) ?? 'Meal';
     const isPlanned = Boolean(recipe || note);
+    // "We cooked it": recipes planned for today or earlier
+    const canRate = Boolean(recipe) && date <= todayLocal();
     const dateLabel = parseLocalDate(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
 
     const openRecipe = () => {
@@ -142,6 +146,20 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
         }
     });
 
+    // Tapping the current rating again clears it.
+    const rate = (value) => runPlanChange(async () => {
+        const next = rating === value ? null : value;
+        const { data, error } = await supabase.rpc('rate_planned_meal', { p_plannedrecipe_id: plannedrecipe_id, p_rating: next });
+        if (error || !data) {
+            console.log(error);
+            showPlanError();
+        } else if (onPlannedChange) {
+            onPlannedChange(data);
+        } else {
+            rerollPlannedRecipe(data, plannedrecipe_id);
+        }
+    });
+
     const moveMeal = async (newDate, newMealType) => {
         const { error } = await supabase.rpc('move_planned_recipe', { p_plannedrecipe_id: plannedrecipe_id, p_date: newDate, p_mealtype: newMealType });
         if (error) {
@@ -167,8 +185,20 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
         { label: 'Note', icon: assets.edit, onPress: () => setSheet('note') }
     ];
 
+    // Loved it / Not again icons are placeholders until dedicated ones exist.
+    const ratingGroup = canRate ? [{
+        title: 'We cooked it. How was it?',
+        actions: [
+            { label: 'Loved it', icon: assets.heart, onPress: () => rate(1), selected: rating === 1 },
+            { label: 'Not again', icon: assets.cross, onPress: () => rate(-1), selected: rating === -1 }
+        ]
+    }] : [];
+    const groups = editable
+        ? [...ratingGroup, { title: ratingGroup.length ? 'Change this meal' : undefined, actions }]
+        : ratingGroup;
+
     const onCardPress = () => {
-        if (editable) {
+        if (editable || canRate) {
             setSheet('actions');
         } else if (recipe) {
             openRecipe();
@@ -192,7 +222,14 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
                     {loading ? (
                         <ActivityIndicator style={{ alignSelf: 'flex-start', paddingVertical: 8 }} />
                     ) : recipe ? (
-                        <RecipeBase recipe={recipe} />
+                        <>
+                            <RecipeBase recipe={recipe} />
+                            {rating ? (
+                                <Text style={[mealPlanStyles.lowImpactText, { marginTop: 4 }]}>
+                                    {rating === 1 ? 'Cooked · loved it' : 'Cooked · not again'}
+                                </Text>
+                            ) : null}
+                        </>
                     ) : note ? (
                         <Text style={mealPlanStyles.noteText}>{note}</Text>
                     ) : (
@@ -225,7 +262,7 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
                 ) : note ? (
                     <NoteBox><Text style={mealPlanStyles.noteText}>{note}</Text></NoteBox>
                 ) : null}
-                actions={actions}
+                groups={groups}
                 onClose={() => setSheet(null)}
             />
             <SearchModal

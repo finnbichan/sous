@@ -105,6 +105,9 @@ const useSheetStyles = () => {
             justifyContent: 'center',
             marginBottom: 6
         },
+        actionIconSelected: {
+            backgroundColor: '#00AEFF'
+        },
         actionCaption: {
             color: colours.text,
             fontSize: 12,
@@ -116,9 +119,10 @@ const useSheetStyles = () => {
 const QUICK_NOTES = ['Eating out', 'Leftovers', 'Takeaway', 'Skip'];
 
 // Options for one meal slot. `preview` is shown above the actions (the planned
-// recipe box or note). Actions render as a row of captioned icon buttons:
-// each is { label, icon, onPress, destructive? }.
-export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, onClose }) => {
+// recipe box or note). Actions render as rows of captioned icon buttons: each is
+// { label, icon, onPress, destructive?, selected? }. Pass `groups`
+// ([{ title?, actions }]) for several rows, or `actions` for one.
+export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, groups, onClose }) => {
     const styles = useSheetStyles();
     const { colours } = useTheme();
 
@@ -131,16 +135,20 @@ export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, o
                     <AppHeaderText>{title}</AppHeaderText>
                     {subtitle ? <Text style={[styles.label, { marginTop: -4, marginLeft: 8 }]}>{subtitle}</Text> : null}
                     {preview ? <View style={{ marginBottom: 16 }}>{preview}</View> : null}
-                    <View style={styles.actionRow}>
-                        {actions.map((action) => (
+                    {(groups ?? [{ actions }]).map((group, index) => (
+                    <View key={group.title ?? index}>
+                    {group.title ? <Text style={[styles.label, { marginLeft: 8 }]}>{group.title}</Text> : null}
+                    <View style={[styles.actionRow, { marginBottom: 12 }]}>
+                        {group.actions.map((action) => (
                             <TouchableOpacity
                                 key={action.label}
                                 style={styles.action}
                                 onPress={action.onPress}
                                 accessibilityRole="button"
                                 accessibilityLabel={action.label}
+                                accessibilityState={{ selected: Boolean(action.selected) }}
                             >
-                                <View style={styles.actionIcon}>
+                                <View style={[styles.actionIcon, action.selected && styles.actionIconSelected]}>
                                     <Image source={action.icon} style={{ width: 28, height: 28 }} />
                                 </View>
                                 <Text
@@ -152,6 +160,8 @@ export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, o
                             </TouchableOpacity>
                         ))}
                     </View>
+                    </View>
+                    ))}
                 </Pressable>
             </Pressable>
         </Modal>

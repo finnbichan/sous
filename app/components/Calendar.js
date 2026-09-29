@@ -102,6 +102,7 @@ const Calendar = ({navigation}) => {
                         date={mealdate}
                         recipe={breakfast?.recipe || null}
                         note={breakfast?.note}
+                        rating={breakfast?.rating}
                         moveDates={dateArray}
                         onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={breakfast?.plannedrecipe_id}
@@ -116,6 +117,7 @@ const Calendar = ({navigation}) => {
                         date={mealdate}
                         recipe={lunch?.recipe || null}
                         note={lunch?.note}
+                        rating={lunch?.rating}
                         moveDates={dateArray}
                         onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={lunch?.plannedrecipe_id}
@@ -130,6 +132,7 @@ const Calendar = ({navigation}) => {
                         date={mealdate}
                         recipe={dinner?.recipe || null}
                         note={dinner?.note}
+                        rating={dinner?.rating}
                         moveDates={dateArray}
                         onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={dinner?.plannedrecipe_id}
