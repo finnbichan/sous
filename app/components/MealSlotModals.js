@@ -1,4 +1,4 @@
-import { Modal, Pressable, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { Modal, Pressable, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView } from 'react-native';
 import React, { useState } from 'react';
 import { useTheme } from '@react-navigation/native';
 import AppHeaderText from './AppHeaderText';
@@ -127,7 +127,7 @@ export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, o
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
             <Pressable style={styles.overlay} onPress={onClose}>
-                <Pressable style={styles.sheet}>
+                <Pressable style={styles.sheet} accessible={false}>
                     <AppHeaderText>{title}</AppHeaderText>
                     {subtitle ? <Text style={[styles.label, { marginTop: -4, marginLeft: 8 }]}>{subtitle}</Text> : null}
                     {preview ? <View style={{ marginBottom: 16 }}>{preview}</View> : null}
@@ -207,8 +207,9 @@ export const NoteModal = ({ visible, mealName, onClose, onSave }) => {
 
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <Pressable style={styles.overlay} onPress={onClose}>
-                <Pressable style={styles.sheet}>
+                <Pressable style={styles.sheet} accessible={false}>
                     <AppHeaderText>{mealName}</AppHeaderText>
                     <View style={styles.suggestions}>
                         {QUICK_NOTES.map((note) => (
@@ -231,6 +232,7 @@ export const NoteModal = ({ visible, mealName, onClose, onSave }) => {
                     {saving ? <ActivityIndicator /> : <AppButton label="Save" onPress={() => save()} />}
                 </Pressable>
             </Pressable>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };
@@ -260,7 +262,7 @@ export const MoveModal = ({ visible, title, dates, currentDate, currentMealType,
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
             <Pressable style={styles.overlay} onPress={onClose}>
-                <Pressable style={styles.sheet}>
+                <Pressable style={styles.sheet} accessible={false}>
                     <AppHeaderText>Move {title}</AppHeaderText>
                     <Text style={styles.label}>Meal</Text>
                     <View style={styles.suggestions}>

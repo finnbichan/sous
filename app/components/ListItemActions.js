@@ -63,7 +63,7 @@ const ListItemActions = ({ item, categories, onClose, onChangeCategory, onDelete
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
             <Pressable style={sheetStyles.overlay} onPress={onClose}>
-                <Pressable style={sheetStyles.sheet}>
+                <Pressable style={sheetStyles.sheet} accessible={false}>
                     <AppHeaderText>{item.item}</AppHeaderText>
                     <Text style={sheetStyles.label}>Category</Text>
                     <FlatList

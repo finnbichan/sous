@@ -5,7 +5,8 @@ import Recipe from '../components/RecipeOverview';
 import { supabase } from '../../supabase';
 import { AuthContext, CacheContext } from '../../Contexts';
 import AppHeaderText from '../components/AppHeaderText';
-import RightHeaderButton from '../components/RightHeaderButton';
+import { MealActionsSheet } from '../components/MealSlotModals';
+import { ImportRecipeSheet } from '../components/RecipeImport';
 import { useTheme } from '@react-navigation/native';
 import Dropdown from '../components/Dropdown';
 
@@ -20,7 +21,7 @@ const ListEmpty = () => {
 }
 
 const ListHeader = ({
-    navigation,
+    onAdd,
     searchText,
     setSearchText,
     filtersOpen,
@@ -43,7 +44,14 @@ const ListHeader = ({
         <View style={{paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
             <AppHeaderText>Your recipes</AppHeaderText>
             <View style={{flexDirection: 'row'}}>
-                <RightHeaderButton navigation={navigation} target="Add a recipe" prevScreen="Recipes"/>
+                <TouchableOpacity
+                onPress={onAdd}
+                accessibilityRole="button"
+                accessibilityLabel="Add a recipe"
+                hitSlop={8}
+                >
+                    <Image source={assets.add} style={{height: 32, width: 32, marginRight: 10}} />
+                </TouchableOpacity>
             </View>
         </View>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10}}>
@@ -105,6 +113,9 @@ const UserRecipes = ({route, navigation}) => {
     const [cuisineFilter, setCuisineFilter] = useState(0);
     const [timeFilter, setTimeFilter] = useState(0);
     const [vegetarianFilter, setVegetarianFilter] = useState(0);
+    // null | 'menu' | 'import'
+    const [addSheet, setAddSheet] = useState(null);
+    const { assets } = useTheme();
     const session = useContext(AuthContext)
     const styles = useStyles();
 
@@ -154,7 +165,7 @@ const UserRecipes = ({route, navigation}) => {
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
                 <ListHeader
-                navigation={navigation}
+                onAdd={() => setAddSheet('menu')}
                 searchText={searchText}
                 setSearchText={setSearchText}
                 filtersOpen={filtersOpen}
@@ -182,6 +193,26 @@ const UserRecipes = ({route, navigation}) => {
                     />
                 )}
             </View>
+            <MealActionsSheet
+                visible={addSheet === 'menu'}
+                title="Add a recipe"
+                actions={[
+                    { label: 'Add manually', icon: assets.edit, onPress: () => {
+                        setAddSheet(null);
+                        navigation.navigate('Add a recipe', {prevScreen: 'Recipes'});
+                    } },
+                    { label: 'Import from a link', icon: assets.search, onPress: () => setAddSheet('import') }
+                ]}
+                onClose={() => setAddSheet(null)}
+            />
+            <ImportRecipeSheet
+                visible={addSheet === 'import'}
+                onClose={() => setAddSheet(null)}
+                onImported={(prefill) => {
+                    setAddSheet(null);
+                    navigation.navigate('Add a recipe', {prevScreen: 'Recipes', prefill});
+                }}
+            />
         </SafeAreaView>
     )
 }
