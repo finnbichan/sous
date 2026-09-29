@@ -1,4 +1,4 @@
-import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet } from 'react-native';
+import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet, TextInput, Keyboard } from 'react-native';
 import React, { useState, useEffect, useLayoutEffect, useContext } from 'react';
 import useStyles from '../styles/Common';
 import Dropdown from '../components/Dropdown';
@@ -25,6 +25,26 @@ const AddOrEditStyles = StyleSheet.create({
         alignItems: 'center',
         marginHorizontal: 8,
         marginTop: 20,
+    },
+    importRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 8,
+        marginTop: 12,
+        gap: 8
+    },
+    importInput: {
+        flex: 1,
+        borderRadius: 16,
+        paddingHorizontal: 14,
+        minHeight: 46,
+        fontSize: 16
+    },
+    importButton: {
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        minHeight: 46,
+        justifyContent: 'center'
     }
 })
 
@@ -56,6 +76,11 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
     const [image, setImage] = useState(route.params?.recipe?.image_uri ? route.params?.recipe?.image_uri : null);
     const [newImageUri, setNewImageUri] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
+    const [importUrl, setImportUrl] = useState('');
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState('');
+    // The text inputs only read defaultValue on mount; bump this to re-render them after an import.
+    const [formKey, setFormKey] = useState(0);
     const [validationMessage, setValidationMessage] = useState('Something went wrong');
     const newRecipe = route.params?.recipe ? false : true;
     const session = useContext(AuthContext);
@@ -171,6 +196,44 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
         }
     }
 
+    const importRecipe = async () => {
+        const url = importUrl.trim();
+        if (!url || importing) return;
+        setImporting(true);
+        setImportError('');
+        const { data, error } = await supabase.functions.invoke('import-recipe', { body: { url } });
+        setImporting(false);
+        if (error) {
+            let message = 'Could not import that recipe.';
+            try {
+                message = (await error.context.json()).error || message;
+            } catch {}
+            setImportError(message);
+            return;
+        }
+        setRecipe((current) => ({
+            ...current,
+            name: data.name || current.name,
+            description: data.description || current.description,
+            ease: data.ease ?? current.ease
+        }));
+        if (data.ingredients?.length) {
+            setIngredients(data.ingredients);
+            setAddIngredients(true);
+        }
+        if (data.steps?.length) {
+            setSteps(data.steps);
+            setAddSteps(true);
+        }
+        if (data.image) {
+            setImage(data.image);
+            setNewImageUri(null);
+        }
+        setImportUrl('');
+        Keyboard.dismiss();
+        setFormKey((key) => key + 1);
+    }
+
     const showError = (message) => {
         setValidationMessage(message);
         setValidationFailed(true);
@@ -241,6 +304,7 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
             >
             <ScrollView
             contentContainerStyle={{flexGrow: 1}}
+            keyboardShouldPersistTaps="handled"
             >
                 {image ? (
                     <TouchableOpacity
@@ -278,13 +342,44 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
                     
                 )}
                 <AppHeaderText>{newRecipe ? "New Recipe" : recipe.name}</AppHeaderText>
+                {newRecipe ? (
+                    <View style={AddOrEditStyles.importRow}>
+                        <TextInput
+                            style={[AddOrEditStyles.importInput, {backgroundColor: colours.card, color: colours.text}]}
+                            placeholder="Import from a link (optional)"
+                            placeholderTextColor={colours.secondaryText}
+                            value={importUrl}
+                            onChangeText={setImportUrl}
+                            keyboardType="url"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            returnKeyType="go"
+                            onSubmitEditing={importRecipe}
+                        />
+                        {importing ? (
+                            <ActivityIndicator style={{marginHorizontal: 12}} />
+                        ) : (
+                            <TouchableOpacity
+                                style={[AddOrEditStyles.importButton, {backgroundColor: colours.card}]}
+                                onPress={importRecipe}
+                                accessibilityRole="button"
+                                accessibilityLabel="Import recipe from link"
+                            >
+                                <Text style={styles.text}>Import</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : null}
+                {importError ? <Text style={styles.errorText}>{importError}</Text> : null}
                 <FLTextInput
+                key={`name-${formKey}`}
                 id="name"
                 defaultValue={recipe.name}
                 onChangeTextProp={(text) => {changeRecipeProperty("name", text)}}
                 label='Name'
                 />
                 <FLTextInput
+                key={`description-${formKey}`}
                 id="description"
                 defaultValue={recipe.description}
                 onChangeTextProp={(text) => {changeRecipeProperty("description", text)}}

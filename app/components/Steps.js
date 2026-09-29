@@ -21,7 +21,7 @@ const Steps = ({steps, onAddition, onChangeText, onRemove, editable}) => {
                         />
                     )
                 })}
-                {steps.length < 10 && editable ? (
+                {steps.length < 50 && editable ? (
                     <TouchableOpacity
                     style={styles.stepButton}
                     onPress={onAddition}
