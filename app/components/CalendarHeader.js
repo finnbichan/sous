@@ -1,6 +1,7 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { ProfileContext } from '../../Contexts';
+import { CacheContext, ProfileContext } from '../../Contexts';
+import { supabase } from '../../supabase';
 import AppHeaderText from './AppHeaderText';
 import useStyles from '../styles/Common';
 import { useTheme } from '@react-navigation/native';
@@ -13,6 +14,22 @@ const CalendarHeader = () => {
     const { colours, assets } = useTheme();
     const { profile } = useContext(ProfileContext);
     const navigation = useNavigation();
+    const { cache } = useContext(CacheContext);
+    const [sharedWith, setSharedWith] = useState(null);
+
+    // While sharing, the meal plan is the household's; show who it's shared with.
+    useEffect(() => {
+        let cancelled = false;
+        supabase.rpc('get_my_lists').then(({ data, error }) => {
+            if (cancelled) return;
+            if (error) {
+                console.log('Error loading sharing status:', error);
+                return;
+            }
+            setSharedWith(data?.find((list) => list.kind === 'Shared')?.shared_with || null);
+        });
+        return () => { cancelled = true; };
+    }, [cache]);
     const time = Number((new Date).getHours());
     var greeting = "Hey";
     if (time < 12) {greeting = "Morning"}
@@ -34,9 +51,14 @@ const CalendarHeader = () => {
                     </TouchableOpacity>
                 </View>
                 <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-                    <Text style={{fontSize: 24, color: colours.text, paddingHorizontal: 12, paddingTop: 4}}>
-                        Your meal plan
-                    </Text>
+                    <View>
+                        <Text style={{fontSize: 24, color: colours.text, paddingHorizontal: 12, paddingTop: 4}}>
+                            {sharedWith ? 'Our meal plan' : 'Your meal plan'}
+                        </Text>
+                        {sharedWith ? (
+                            <Text style={[styles.lowImpactText, {paddingHorizontal: 12}]}>Shared with {sharedWith}</Text>
+                        ) : null}
+                    </View>
                     <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
                         <TouchableOpacity
                         style={{flexDirection: 'row', padding: 8, marginRight: 12}}
