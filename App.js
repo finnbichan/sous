@@ -16,8 +16,6 @@ import MealHistory from './app/screens/MealHistory';
 import AddOrEditUserRecipe from './app/screens/AddOrEditUserRecipe';
 import NewUser from './app/screens/NewUser';
 import ConfirmOTP from './app/screens/ConfirmOTP';
-import EditButton from './app/components/EditButton';
-import ShoppingLists from './app/screens/ShoppingLists';
 import './globals';
 import { AuthContext, CacheContext, ProfileContext } from './Contexts';
 import List from './app/screens/List';

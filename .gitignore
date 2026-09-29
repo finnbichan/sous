@@ -38,3 +38,7 @@ yarn-error.*
 android/
 
 ios/
+
+# build outputs
+*.apk
+*.aab
