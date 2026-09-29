@@ -26,7 +26,7 @@ const calendarStyles = StyleSheet.create({
 const Calendar = ({navigation}) => {
     const [loading, setLoading] = useState(true);
     const [plannedRecipes, setPlannedRecipes] = useState([]);
-    const { cache } = useContext(CacheContext);
+    const { cache, setCache } = useContext(CacheContext);
     const session = useContext(AuthContext);
     const {colours} = useTheme();
     const styles = useStyles();
@@ -101,6 +101,9 @@ const Calendar = ({navigation}) => {
                         meal_type={1}
                         date={mealdate}
                         recipe={breakfast?.recipe || null}
+                        note={breakfast?.note}
+                        moveDates={dateArray}
+                        onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={breakfast?.plannedrecipe_id}
                         addPlannedRecipe={addPlannedRecipe}
                         deletePlannedRecipe={deletePlannedRecipe}
@@ -112,6 +115,9 @@ const Calendar = ({navigation}) => {
                         meal_type={2}
                         date={mealdate}
                         recipe={lunch?.recipe || null}
+                        note={lunch?.note}
+                        moveDates={dateArray}
+                        onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={lunch?.plannedrecipe_id}
                         addPlannedRecipe={addPlannedRecipe}
                         deletePlannedRecipe={deletePlannedRecipe}
@@ -123,6 +129,9 @@ const Calendar = ({navigation}) => {
                         meal_type={3}
                         date={mealdate}
                         recipe={dinner?.recipe || null}
+                        note={dinner?.note}
+                        moveDates={dateArray}
+                        onPlanChanged={() => setCache(Date.now())}
                         plannedrecipe_id={dinner?.plannedrecipe_id}
                         addPlannedRecipe={addPlannedRecipe}
                         deletePlannedRecipe={deletePlannedRecipe}
@@ -133,9 +142,9 @@ const Calendar = ({navigation}) => {
                 }
                 childrenIfClosed={
                     <MealPlanSummary
-                    breakfast={breakfast?.recipe || null}
-                    lunch={lunch?.recipe || null}
-                    dinner={dinner?.recipe || null}
+                    breakfast={breakfast?.recipe?.name ?? breakfast?.note ?? null}
+                    lunch={lunch?.recipe?.name ?? lunch?.note ?? null}
+                    dinner={dinner?.recipe?.name ?? dinner?.note ?? null}
                     />
                 }
                 />

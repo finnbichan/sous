@@ -5,6 +5,7 @@ import { supabase } from '../../supabase';
 import { AuthContext } from '../../Contexts';
 import RecipeBase from './RecipeBase';
 import SearchModal from './SearchModal';
+import { NoteModal, MoveModal } from './MealSlotModals';
 import { useTheme } from '@react-navigation/native';
 
 const showNoRecipe = (meal_name) => Alert.alert(
@@ -36,7 +37,7 @@ const MealPlanStyles = (props) => StyleSheet.create({
     image: {
         height: 36,
         width: 36,
-        marginHorizontal: 8
+        marginHorizontal: 4
     },
     noPlanContainer: {
         flexDirection: 'row',
@@ -46,7 +47,7 @@ const MealPlanStyles = (props) => StyleSheet.create({
     noPlanButtons: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: 100
+        justifyContent: 'flex-end'
     },
     noPlanText: {
         color: props.colours.text,
@@ -58,6 +59,12 @@ const MealPlanStyles = (props) => StyleSheet.create({
         color: props.colours.secondaryText,
         marginTop: -4
     },
+    noteText: {
+        color: props.colours.text,
+        fontSize: 18,
+        fontStyle: 'italic',
+        paddingBottom: 4
+    },
     yesPlanTopRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -66,8 +73,7 @@ const MealPlanStyles = (props) => StyleSheet.create({
         marginBottom: 4
     },
     yesPlanLeftSection: {
-        flexGrow: 1,
-        maxWidth: '73%',
+        flex: 1
     }
 });
 
@@ -84,8 +90,19 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
     
     const [newMealLoading, setNewMealLoading] = useState(false);
     const [searchModalOpen, setSearchModalOpen] = useState(false);
+    const [noteModalOpen, setNoteModalOpen] = useState(false);
 
     const session = useContext(AuthContext);
+
+    const addNote = async (note) => {
+        const {data, error} = await supabase.rpc('add_planned_note', {p_mealtype: meal_type, p_date: date, p_note: note})
+        if (error || !data) {
+            console.log(error);
+            return false;
+        }
+        addPlannedRecipe(data);
+        return true;
+    }
 
     const suggestRecipe = async (meal_type, date, user_id) => {
         setNewMealLoading(true);
@@ -123,6 +140,12 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
             meal_type={meal_type}
             date={date}
             />
+            <NoteModal
+            visible={noteModalOpen}
+            mealName={meal_name}
+            onClose={() => setNoteModalOpen(false)}
+            onSave={addNote}
+            />
             {newMealLoading ? (
                 <>
                     <Text style={mealPlanStyles.lowImpactText}>{meal_name}</Text>
@@ -137,7 +160,18 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
                 {editable ? ( 
                 <View style={mealPlanStyles.noPlanButtons}>
                     <TouchableOpacity
-                    onPress={() => setSearchModalOpen(true)}>
+                    onPress={() => setNoteModalOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add a note for ${meal_name}`}>
+                        <Image
+                        style={mealPlanStyles.image}
+                        source={assets.edit}
+                        />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                    onPress={() => setSearchModalOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Search recipes for ${meal_name}`}>
                         <Image
                         style={mealPlanStyles.image}
                         source={assets.search}
@@ -145,6 +179,8 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
                     </TouchableOpacity>
                     <TouchableOpacity
                     onPress={() => suggestRecipe(meal_type, date, user_id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Suggest a recipe for ${meal_name}`}
                     >
                         <Image
                         style={mealPlanStyles.image}
@@ -159,8 +195,20 @@ const NoPlan = ({ meal_name, date, meal_type, user_id, addPlannedRecipe, editabl
     )
 }
 
-const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, date, plannedrecipe_id, deletePlannedRecipe, rerollPlannedRecipe, editable}) => {
+const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, note, date, plannedrecipe_id, deletePlannedRecipe, rerollPlannedRecipe, editable, moveDates, onPlanChanged}) => {
     const [loading, setLoading] = useState(false)
+    const [moveOpen, setMoveOpen] = useState(false)
+    const canMove = editable && Boolean(moveDates?.length);
+
+    const moveMeal = async (newDate, newMealType) => {
+        const {error} = await supabase.rpc('move_planned_recipe', {p_plannedrecipe_id: plannedrecipe_id, p_date: newDate, p_mealtype: newMealType})
+        if (error) {
+            console.log(error);
+            return false;
+        }
+        onPlanChanged?.();
+        return true;
+    }
     const { assets } = useTheme();
     const mealPlanStyles = useMealPlanStyles();
     const deactivatePlannedRecipe = async () => {
@@ -207,22 +255,50 @@ const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, date, plann
                 </>
             ) : (
             <View style={mealPlanStyles.yesPlanTopRow}>
+                <MoveModal
+                visible={moveOpen}
+                title={recipe?.name ?? note}
+                dates={moveDates}
+                currentDate={date}
+                currentMealType={meal_type}
+                onClose={() => setMoveOpen(false)}
+                onMove={moveMeal}
+                />
                 <TouchableOpacity
                 onPress={()=>{
-                    navigation.navigate("Recipe", {prevScreen: 'Home', recipe: recipe});
+                    if (recipe) navigation.navigate("Recipe", {prevScreen: 'Home', recipe: recipe});
                 }}
+                onLongPress={canMove ? () => setMoveOpen(true) : undefined}
+                accessibilityHint={canMove ? 'Long press to move to another day' : undefined}
                 style={mealPlanStyles.yesPlanLeftSection}
                 >
                     <Text style={mealPlanStyles.lowImpactText}>{meal_name}</Text>
-                    <RecipeBase
-                    recipe={recipe}
-                    />
+                    {recipe ? (
+                        <RecipeBase
+                        recipe={recipe}
+                        />
+                    ) : (
+                        <Text style={mealPlanStyles.noteText}>{note}</Text>
+                    )}
                 </TouchableOpacity>
                 { editable ? (
                 <View style={mealPlanStyles.noPlanButtons}>
+                    {canMove ? (
+                    <TouchableOpacity
+                    onPress={() => setMoveOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move ${meal_name} to another day`}
+                    >
+                        <Image
+                        style={mealPlanStyles.image}
+                        source={assets.calendar}
+                        />
+                    </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity
                     onPress={deactivatePlannedRecipe}
-                    
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${meal_name}`}
                     >
                         <Image
                         style={mealPlanStyles.image}
@@ -231,6 +307,8 @@ const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, date, plann
                     </TouchableOpacity>
                     <TouchableOpacity
                     onPress={() => rerollRecipe(meal_type, date, user_id, plannedrecipe_id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Suggest a different ${meal_name.toLowerCase()}`}
                     >
                         <Image
                         style={mealPlanStyles.image}
@@ -245,7 +323,7 @@ const YesPlan = ({navigation, user_id, meal_name, meal_type, recipe, date, plann
     )
 }
 
-const MealPlan = ({ navigation, meal_type, date, recipe, plannedrecipe_id, addPlannedRecipe, deletePlannedRecipe, rerollPlannedRecipe, editable }) => {
+const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id, addPlannedRecipe, deletePlannedRecipe, rerollPlannedRecipe, editable, moveDates, onPlanChanged }) => {
     const session = useContext(AuthContext)
     const mealPlanStyles = useMealPlanStyles();
     var meal_name = null;
@@ -257,7 +335,7 @@ const MealPlan = ({ navigation, meal_type, date, recipe, plannedrecipe_id, addPl
     }
     return (
         <View style={mealPlanStyles.container}>
-            {recipe === null ? (
+            {recipe === null && !note ? (
                 <NoPlan
                 user_id={session.user.id}
                 meal_name={meal_name}
@@ -273,7 +351,10 @@ const MealPlan = ({ navigation, meal_type, date, recipe, plannedrecipe_id, addPl
                 meal_name={meal_name}
                 meal_type={meal_type}
                 recipe={recipe}
+                note={note}
                 date={date}
+                moveDates={moveDates}
+                onPlanChanged={onPlanChanged}
                 plannedrecipe_id={plannedrecipe_id}
                 addPlannedRecipe={addPlannedRecipe}
                 deletePlannedRecipe={deletePlannedRecipe}
