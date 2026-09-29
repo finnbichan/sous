@@ -5,3 +5,7 @@ project_id = "sous-supa"
 [functions.import-recipe]
 entrypoint = "./functions/import-recipe/index.js"
 verify_jwt = true
+
+[functions.embed-recipe]
+entrypoint = "./functions/embed-recipe/index.js"
+verify_jwt = true

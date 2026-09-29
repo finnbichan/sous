@@ -223,6 +223,10 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
         }
         const { id, ...saved } = data;
         const savedRecipe = { ...saved, recipe_id: id };
+        // Embed for taste-based suggestions in the background; a failure just
+        // leaves it for the backfill, so don't hold up the save.
+        supabase.functions.invoke('embed-recipe', { body: { recipe_id: id } })
+            .then(({ error: embedError }) => { if (embedError) console.log('embed-recipe failed', embedError); });
         setCache(savedRecipe)
         navigation.navigate('Recipe', {prevScreen: "Recipes", recipe: savedRecipe})
     }
