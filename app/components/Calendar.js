@@ -165,6 +165,8 @@ const Calendar = ({navigation}) => {
                 renderItem={({item}) => renderDate(item)}
                 style={{marginBottom: '-5'}}
                 ListHeaderComponent={<CalendarHeader />}
+                // sheets (search, notes) render inside this list; don't eat their first tap
+                keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
             /> 
             )}

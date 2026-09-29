@@ -77,6 +77,39 @@ const useSheetStyles = () => {
 
 const QUICK_NOTES = ['Eating out', 'Leftovers', 'Takeaway', 'Skip'];
 
+// Options for one meal slot. `preview` is shown above the actions (the planned
+// recipe or note); each action is { label, onPress, destructive? }.
+export const MealActionsSheet = ({ visible, title, subtitle, preview, actions, onClose }) => {
+    const styles = useSheetStyles();
+    const { colours } = useTheme();
+
+    if (!visible) return null;
+
+    return (
+        <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+            <Pressable style={styles.overlay} onPress={onClose}>
+                <Pressable style={styles.sheet}>
+                    <AppHeaderText>{title}</AppHeaderText>
+                    {subtitle ? <Text style={[styles.label, { marginTop: -4, marginLeft: 8 }]}>{subtitle}</Text> : null}
+                    {preview ? <View style={{ marginBottom: 12, marginLeft: 8 }}>{preview}</View> : null}
+                    {actions.map((action) => (
+                        <TouchableOpacity
+                            key={action.label}
+                            style={styles.day}
+                            onPress={action.onPress}
+                            accessibilityRole="button"
+                        >
+                            <Text style={[styles.dayText, action.destructive && { color: '#EF4444' }, action.primary && { color: colours.text, fontWeight: '600' }]}>
+                                {action.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </Pressable>
+            </Pressable>
+        </Modal>
+    );
+};
+
 // Free-text meal, e.g. "Eating out".
 export const NoteModal = ({ visible, mealName, onClose, onSave }) => {
     const styles = useSheetStyles();

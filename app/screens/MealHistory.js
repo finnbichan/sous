@@ -174,6 +174,8 @@ const MealHistory = ({ navigation }) => {
                         data={dateArray}
                         renderItem={renderDate}
                         keyExtractor={(item) => item}
+                        // sheets (search, notes) render inside this list; don't eat their first tap
+                        keyboardShouldPersistTaps="handled"
                         style={{ width: '100%', marginTop: 12 }}
                         contentContainerStyle={{ paddingBottom: 24 }}
                         showsVerticalScrollIndicator={false}
