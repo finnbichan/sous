@@ -82,16 +82,9 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
         navigation.navigate("Recipe", { prevScreen: 'Home', recipe: recipe });
     };
 
-    // Put a new planned meal in this slot, replacing whatever was there.
-    const placeInSlot = async (newPlanned) => {
+    // The server replaces whatever was in the slot; mirror that in local state.
+    const placeInSlot = (newPlanned) => {
         if (plannedrecipe_id) {
-            const { error } = await supabase
-                .from('plannedrecipes')
-                .update({ active: false })
-                .eq('id', plannedrecipe_id);
-            if (error) {
-                console.log("error", error);
-            }
             rerollPlannedRecipe(newPlanned, plannedrecipe_id);
         } else {
             addPlannedRecipe(newPlanned);
@@ -114,7 +107,7 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
         } else if (!data) {
             showNoRecipe(meal_name);
         } else {
-            await placeInSlot(data);
+            placeInSlot(data);
         }
     });
 
@@ -125,7 +118,7 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
             console.log(error);
             showPlanError();
         } else {
-            await placeInSlot(data);
+            placeInSlot(data);
         }
     });
 
@@ -135,15 +128,12 @@ const MealPlan = ({ navigation, meal_type, date, recipe, note, plannedrecipe_id,
             console.log(error);
             return false;
         }
-        await placeInSlot(data);
+        placeInSlot(data);
         return true;
     };
 
     const remove = () => runPlanChange(async () => {
-        const { error } = await supabase
-            .from('plannedrecipes')
-            .update({ active: false })
-            .eq('id', plannedrecipe_id);
+        const { error } = await supabase.rpc('remove_planned_recipe', { p_plannedrecipe_id: plannedrecipe_id });
         if (error) {
             console.log("error", error);
             showPlanError();
