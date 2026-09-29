@@ -8,6 +8,7 @@ import AppHeaderText from '../components/AppHeaderText';
 import { AuthContext, CacheContext } from '../../Contexts';
 import GenerateListModal from '../components/GenerateListModal';
 import Dropdown from '../components/Dropdown';
+import ListItemActions from '../components/ListItemActions';
 
 const getCategoryLabel = (category) => category || 'Uncategorised';
 
@@ -23,6 +24,8 @@ const List = ({ route }) => {
     const [selectedListType, setSelectedListType] = useState('Personal');
     const [isPremium, setIsPremium] = useState(false);
     const [sharedWith, setSharedWith] = useState(null);
+    const [actionItem, setActionItem] = useState(null);
+    const [categories, setCategories] = useState([]);
     const isFocused = useIsFocused();
     const [loadingItems, setLoadingItems] = useState(false);
     const sectionListRef = useRef(null);
@@ -124,6 +127,14 @@ const List = ({ route }) => {
             fontSize: 18,
             flex: 1,
             paddingVertical: 12
+        },
+        moreButton: {
+            paddingHorizontal: 6,
+            paddingVertical: 8
+        },
+        moreText: {
+            color: colours.secondaryText,
+            fontSize: 22
         },
         checkboxContainer: {
             padding: 8
@@ -456,6 +467,37 @@ const List = ({ route }) => {
         void persistItemUpdate(id, { quantity: nextQuantity }, rollbackItems);
     };
 
+    useEffect(() => {
+        supabase.from('item_categories').select('category').then(({ data, error }) => {
+            if (error) {
+                console.log('Error loading categories:', error);
+                return;
+            }
+            setCategories([...new Set((data || []).map((row) => row.category).filter(Boolean))].sort());
+        });
+    }, []);
+
+    const onChangeCategory = (item, category) => {
+        setActionItem(null);
+        if ((item.category ?? null) === category) return;
+        const rollbackItems = items;
+        setItems((currentItems) => currentItems.map((listItem) => (
+            listItem.id === item.id ? { ...listItem, category } : listItem
+        )));
+        void persistItemUpdate(item.id, { category }, rollbackItems);
+    };
+
+    const onDeleteItem = async (item) => {
+        setActionItem(null);
+        const rollbackItems = items;
+        setItems((currentItems) => currentItems.filter((listItem) => listItem.id !== item.id));
+        const { error } = await supabase.from('list_items').delete().eq('id', item.id);
+        if (error) {
+            console.log('Error deleting item:', error);
+            setItems(rollbackItems);
+        }
+    };
+
     const onClearCompleted = async () => {
         const completedIds = items
             .filter((item) => item.checked && !String(item.id).startsWith('temp-'))
@@ -559,6 +601,16 @@ const List = ({ route }) => {
                         editable={!item.checked}
                     />
                 </View>
+                <TouchableOpacity
+                    style={listStyles.moreButton}
+                    onPress={() => setActionItem(item)}
+                    disabled={String(item.id).startsWith('temp-')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`More options for ${item.item}`}
+                    hitSlop={6}
+                >
+                    <Text style={listStyles.moreText}>⋮</Text>
+                </TouchableOpacity>
                 <View style={listStyles.checkboxContainer}>
                     <Checkbox
                         onPress={() => onItemCheck(item.id)}
@@ -669,6 +721,13 @@ const List = ({ route }) => {
                     </View>
                 </View>
             </View>
+            <ListItemActions
+                item={actionItem}
+                categories={categories}
+                onClose={() => setActionItem(null)}
+                onChangeCategory={onChangeCategory}
+                onDelete={onDeleteItem}
+            />
             <GenerateListModal
                 genModalOpen={genModalOpen}
                 setGenModalOpen={setGenModalOpen}
