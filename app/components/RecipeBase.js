@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import useStyles from '../styles/Common';
 import { useTheme } from '@react-navigation/native';
+import { labelFor } from '../utils/recipes';
 
 
 
@@ -39,14 +40,14 @@ const RecipeBase = ({recipe}) => {
                 </Text>
                 <View style={styles.descriptorsParent}>
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{easeList[recipe.ease].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(easeList, recipe.ease)}</Text>
                     </View>
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{cuisineList[recipe.cuisine].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(cuisineList, recipe.cuisine)}</Text>
                     </View>
                     {recipe.diet == 0 ? (<></>):(
                     <View style={styles.descriptors}>
-                        <Text style={styles.descriptorText}>{dietList[recipe.diet].label}</Text>
+                        <Text style={styles.descriptorText}>{labelFor(dietList, recipe.diet)}</Text>
                     </View> )
                     }
                 </View>

@@ -10,7 +10,7 @@ import AppText from './AppText';
 import AppButton from './AppButton';
 
 
-const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
+const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated, listId, listName }) => {
     const formatDateValue = (date) => {
         const year = date.getFullYear();
         const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -22,14 +22,6 @@ const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
         const [year, month, day] = dateString.split('-').map(Number);
         return new Date(year, month - 1, day).toLocaleDateString([], {
             weekday: 'short',
-            day: 'numeric',
-            month: 'short'
-        });
-    };
-
-    const formatRangeLabel = (dateString) => {
-        const [year, month, day] = dateString.split('-').map(Number);
-        return new Date(year, month - 1, day).toLocaleDateString([], {
             day: 'numeric',
             month: 'short'
         });
@@ -51,6 +43,7 @@ const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
     const [endDate, setEndDate] = useState(dateArray[5]);
     const [plannedRecipes, setPlannedRecipes] = useState([]);
     const [submitting, setSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
     const { setCache } = useContext(CacheContext);
     const { colours } = useTheme();
     const styles = useStyles();
@@ -76,32 +69,39 @@ const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
     }
 
     const generateList = async () => {
-        if (!hasMealsIncluded) {
+        if (!hasMealsIncluded || !listId || submitting) {
             return;
         }
 
         setSubmitting(true);
+        setErrorMessage('');
+        // Adds the planned meals' ingredients to the list shown on the List screen,
+        // merging items that are already on it.
         const { data, error } = await supabase.rpc('create_list', {
-            p_user_id: session.user.id,
-            p_list_name: `${formatRangeLabel(startDate)} - ${formatRangeLabel(endDate)}`,
+            p_list_id: listId,
             p_start_date: startDate,
             p_end_date: endDate
         });
+        setSubmitting(false);
         if (error) {
             console.error("Error generating shopping list:", error);
-        } else {
-            setCache(Date.now());
-            console.log('Generated shopping list:', data);
-            if (onGenerated) {
-                onGenerated(data);
-            }
+            setErrorMessage('Could not add ingredients to your list. Please try again.');
+            return;
         }
-        setSubmitting(false);
+        if (data?.added === 0 && data?.merged === 0) {
+            setErrorMessage('None of these meals have ingredients yet. Add them on each recipe first.');
+            return;
+        }
+        setCache(Date.now());
+        if (onGenerated) {
+            onGenerated(data);
+        }
         setGenModalOpen(false);
     }
 
     useEffect(() => {
         if (genModalOpen && plannedRecipes) {
+            setErrorMessage('');
             setLoading(true);
             getPlannedRecipes();
         }}, [genModalOpen]);
@@ -185,6 +185,9 @@ const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
                        />
                        <View style={modalStyles.modal}>
                         <AppHeaderText>Generate a list</AppHeaderText>
+                        {listName ? (
+                            <Text style={[styles.lowImpactText, {alignSelf: 'flex-start', marginLeft: 8}]}>Ingredients will be added to your {listName} list</Text>
+                        ) : null}
                         
                             <>
                                 <Text style={[styles.lowImpactText, {alignSelf: 'flex-start', marginLeft: 8, marginBottom: '-10'}]}>From</Text>
@@ -228,6 +231,9 @@ const GenerateModal = ({ genModalOpen, setGenModalOpen, onGenerated }) => {
                                             }}
                                         />
                                     </View>
+                                ) : null}
+                                {errorMessage ? (
+                                    <Text style={styles.errorText}>{errorMessage}</Text>
                                 ) : null}
                                 {submitting ? <ActivityIndicator /> : (
                                <AppButton

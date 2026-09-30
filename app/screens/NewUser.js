@@ -17,23 +17,30 @@ const NewUser = ( {navigation} ) => {
   const { colours } = useTheme();
   const styles = useStyles();
 
+  const [errorMessage, setErrorMessage] = useState('');
+
   const signUp = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+    setErrorMessage('');
     setLoading(true);
-    await supabase.auth.signInWithOtp({
-      email: email,
-      options: {
-        data: {
-          should_create_user: true
-        }
-      }
-    })
-    .then(() => {
-      navigation.navigate('Confirm OTP', {
-        email: email
-      });
-    })
-    .catch((error) => {console.log(error);})
-    .finally(() => {setLoading(false)}) 
+    // supabase-js returns errors instead of throwing, so check the result.
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmedEmail,
+      options: { shouldCreateUser: true }
+    });
+    setLoading(false);
+    if (error) {
+      console.log(error);
+      setErrorMessage(error.status === 429
+        ? 'Too many attempts. Please wait a minute and try again.'
+        : 'We couldn\'t send your code. Please check your email address and try again.');
+      return;
+    }
+    navigation.navigate('Confirm OTP', { email: trimmedEmail });
   }
 
   const newUserStyles = StyleSheet.create({
@@ -48,6 +55,12 @@ const NewUser = ( {navigation} ) => {
     loginLink: {
       color: colours.text,
       textDecorationLine: 'underline'
+    },
+    errorText: {
+      color: '#b22222',
+      alignSelf: 'flex-start',
+      marginHorizontal: 12,
+      marginTop: 8
     }
   });
 
@@ -64,7 +77,16 @@ const NewUser = ( {navigation} ) => {
         defaultValue={email}
         onChangeTextProp={setEmail}
         editable={true}
+        multiline={false}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="go"
+        onSubmitEditing={signUp}
         />
+        {errorMessage ? <Text style={newUserStyles.errorText}>{errorMessage}</Text> : null}
         {loading ? <ActivityIndicator /> : (
           <AppButton
           onPress={signUp}

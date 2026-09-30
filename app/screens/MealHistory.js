@@ -9,6 +9,7 @@ import FloatingDrawerButton from '../components/FloatingDrawerButton';
 import CollapsibleSection from '../components/CollapsibleSection';
 import MealPlan from '../components/MealPlan';
 import MealPlanSummary from '../components/MealPlanSummary';
+import { formatLocalDate } from '../utils/dates';
 
 const mealHistoryStyles = StyleSheet.create({
     parentDateContainer: {
@@ -20,13 +21,6 @@ const mealHistoryStyles = StyleSheet.create({
         marginLeft: '-10'
     }
 });
-
-const formatLocalDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
 
 const buildDateRange = (startDate, endDate) => {
     const dates = [];
@@ -102,6 +96,10 @@ const MealHistory = ({ navigation }) => {
         return buildDateRange(earliestDate, formatLocalDate(yesterday));
     }, [plannedRecipes]);
 
+    const replacePlanned = (updated) => setPlannedRecipes((current) => current.map((planned) => (
+        planned.plannedrecipe_id === updated.plannedrecipe_id ? updated : planned
+    )));
+
     const renderDate = ({ item: mealdate }) => {
         const mealdateDateObject = new Date(`${mealdate}T00:00:00`);
         const daysOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -128,32 +126,41 @@ const MealHistory = ({ navigation }) => {
                                 meal_type={1}
                                 date={mealdate}
                                 recipe={breakfast?.recipe || null}
+                                note={breakfast?.note}
+                                rating={breakfast?.rating}
                                 plannedrecipe_id={breakfast?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                             <MealPlan
                                 navigation={navigation}
                                 meal_type={2}
                                 date={mealdate}
                                 recipe={lunch?.recipe || null}
+                                note={lunch?.note}
+                                rating={lunch?.rating}
                                 plannedrecipe_id={lunch?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                             <MealPlan
                                 navigation={navigation}
                                 meal_type={3}
                                 date={mealdate}
                                 recipe={dinner?.recipe || null}
+                                note={dinner?.note}
+                                rating={dinner?.rating}
                                 plannedrecipe_id={dinner?.plannedrecipe_id}
                                 editable={false}
+                                onPlannedChange={replacePlanned}
                             />
                         </View>
                     }
                     childrenIfClosed={(
                         <MealPlanSummary
-                            breakfast={breakfast?.recipe || null}
-                            lunch={lunch?.recipe || null}
-                            dinner={dinner?.recipe || null}
+                            breakfast={breakfast?.recipe?.name ?? breakfast?.note ?? null}
+                            lunch={lunch?.recipe?.name ?? lunch?.note ?? null}
+                            dinner={dinner?.recipe?.name ?? dinner?.note ?? null}
                         />
                     )}
                 />
@@ -177,6 +184,8 @@ const MealHistory = ({ navigation }) => {
                         data={dateArray}
                         renderItem={renderDate}
                         keyExtractor={(item) => item}
+                        // sheets (search, notes) render inside this list; don't eat their first tap
+                        keyboardShouldPersistTaps="handled"
                         style={{ width: '100%', marginTop: 12 }}
                         contentContainerStyle={{ paddingBottom: 24 }}
                         showsVerticalScrollIndicator={false}

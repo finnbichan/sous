@@ -1,0 +1,11 @@
+project_id = "sous-supa"
+
+# Edge functions are plain JavaScript (Deno runs it natively): a .ts file
+# anywhere in this repo makes Expo demand a TypeScript setup for the app.
+[functions.import-recipe]
+entrypoint = "./functions/import-recipe/index.js"
+verify_jwt = true
+
+[functions.embed-recipe]
+entrypoint = "./functions/embed-recipe/index.js"
+verify_jwt = true

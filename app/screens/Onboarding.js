@@ -8,9 +8,6 @@ import useStyles from '../styles/Common';
 import FLTextInput from '../components/FloatingLabelInput';
 import { supabase } from '../../supabase';
 import { AuthContext, ProfileContext } from '../../Contexts';
-import * as ImagePicker from 'expo-image-picker';
-import { decode } from 'base64-arraybuffer';
-import uuid from 'react-native-uuid';
 import '../../globals';
 import Dropdown from '../components/Dropdown';
 import Ingredients from '../components/Ingredients';
@@ -32,16 +29,12 @@ const Onboarding = ({ navigation }) => {
   const session = useContext(AuthContext);
   const { setProfile } = useContext(ProfileContext);
   const [displayName, setDisplayName] = useState('');
-  const [image, setImage] = useState(null);
-  const [newImageUri, setNewImageUri] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [dietary, setDietary] = useState(0);
   const [portionSize, setPortionSize] = useState(null);
   const [allergies, setAllergies] = useState([null]);
   const [dislikes, setDislikes] = useState([null]);
   const [submitting, setSubmitting] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
-  const profileImagesBucket = 'profile-images';
 
   const onboardingStyles = StyleSheet.create({
     container: {
@@ -64,20 +57,6 @@ const Onboarding = ({ navigation }) => {
       marginBottom: -10,
       marginLeft: 12,
       alignSelf: 'flex-start'
-    },
-    imageContainer: {
-      height: 120,
-      width: 120,
-      borderRadius: 60,
-      overflow: 'hidden',
-      backgroundColor: colours.card,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 16
-    },
-    image: {
-      height: '100%',
-      width: '100%'
     },
     cameraIcon: {
       position: 'absolute'
@@ -130,45 +109,6 @@ const Onboarding = ({ navigation }) => {
     return cleanedValues.length ? cleanedValues : null;
   };
 
-  const getAndSetFullUri = async (file) => {
-    const { data } = supabase.storage.from(profileImagesBucket).getPublicUrl(file);
-    setNewImageUri(data.publicUrl);
-  };
-
-  const uploadImage = async (pickedImageBase64) => {
-    setUploadingImage(true);
-    const profileFilePath = `${uuid.v4()}.png`;
-    const { error } = await supabase.storage.from(profileImagesBucket).upload(profileFilePath, decode(pickedImageBase64), {
-      contentType: 'image/*',
-      upsert: true
-    });
-
-    if (error) {
-      setValidationMessage('Unable to upload your profile photo right now.');
-      setUploadingImage(false);
-      return;
-    }
-
-    await getAndSetFullUri(profileFilePath);
-    setUploadingImage(false);
-  };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 1,
-      base64: true
-    });
-
-    if (!result.canceled) {
-      setValidationMessage('');
-      setImage(result.assets[0].uri);
-      uploadImage(result.assets[0].base64);
-    }
-  };
-
   const submit = async () => {
     const trimmedDisplayName = displayName.trim();
 
@@ -182,11 +122,6 @@ const Onboarding = ({ navigation }) => {
       return;
     }
 
-    if (uploadingImage) {
-      setValidationMessage('Please wait for the image to finish uploading.');
-      return;
-    }
-
     setSubmitting(true);
     setValidationMessage('');
 
@@ -195,7 +130,6 @@ const Onboarding = ({ navigation }) => {
       .upsert({
         id: session.user.id,
         display_name: trimmedDisplayName,
-        avatar_url: newImageUri,
         dietary,
         portion_size: portionSize,
         allergies: cleanTextArray(allergies),
@@ -210,7 +144,6 @@ const Onboarding = ({ navigation }) => {
 
     setProfile({
       display_name: trimmedDisplayName,
-      avatar_url: newImageUri,
       dietary,
       portion_size: portionSize,
       allergies: cleanTextArray(allergies),
@@ -233,27 +166,7 @@ const Onboarding = ({ navigation }) => {
               <AppHeaderText>Welcome to Sous</AppHeaderText>
               <AppText>Get started with your meal planning journey</AppText>
             </View>
-
             <View style={onboardingStyles.form}>
-              <Text style={onboardingStyles.fieldLabel}>Profile picture</Text>
-              <TouchableOpacity
-                style={onboardingStyles.imageContainer}
-                onPress={pickImage}
-              >
-                {image ? (
-                  <Image
-                    source={{ uri: image }}
-                    style={onboardingStyles.image}
-                  />
-                ) : null}
-                <Image
-                  source={assets.camera}
-                  style={[styles.icon, onboardingStyles.cameraIcon]}
-                />
-              </TouchableOpacity>
-              {uploadingImage ? (
-                <ActivityIndicator style={{ marginBottom: 8 }} />
-              ) : null}
               <FLTextInput
                 id="display-name"
                 label="Display name"
@@ -272,7 +185,7 @@ const Onboarding = ({ navigation }) => {
                 data={portionSizeOptions}
                 label="Portion size"
                 onSelect={(selected) => setPortionSize(Number(selected.id))}
-                value={portionSize}
+                value={portionSizeOptions.findIndex((option) => option.id === portionSize)}
               />
               <Text style={[onboardingStyles.fieldLabel, { marginBottom: 4}]}>Any allergies?</Text>
               <Ingredients

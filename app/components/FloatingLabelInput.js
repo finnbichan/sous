@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { useTheme } from '@react-navigation/native';
 
 
-const FLTextInput = ( {id, label, defaultValue, onChangeTextProp, editable=true, rerenderTrigger} ) => {
+const FLTextInput = ( {id, label, defaultValue, onChangeTextProp, editable=true, multiline=true, ...inputProps} ) => {
     const { colours } = useTheme();
     const FLInputStyles = StyleSheet.create({
         container: {
@@ -106,8 +106,9 @@ const FLTextInput = ( {id, label, defaultValue, onChangeTextProp, editable=true,
             onChangeText={onChangeText}
             onFocus={handleFocus}
             onBlur={handleBlur}
-            multiline={true}
+            multiline={multiline}
             editable={editable}
+            {...inputProps}
             />
         </View>
     )

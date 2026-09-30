@@ -1,4 +1,4 @@
-import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet } from 'react-native';
+import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet, Alert } from 'react-native';
 import React, { useState, useEffect, useLayoutEffect, useContext } from 'react';
 import useStyles from '../styles/Common';
 import Dropdown from '../components/Dropdown';
@@ -16,7 +16,7 @@ import { decode } from 'base64-arraybuffer';
 import { AuthContext, CacheContext } from '../../Contexts';
 import uuid from 'react-native-uuid';
 import BackButton from '../components/BackButton';
-import EditButton from '../components/EditButton';
+import { MEAL_TYPES, toTextList } from '../utils/recipes';
 
 const AddOrEditStyles = StyleSheet.create({
     checkboxContainer: {
@@ -30,21 +30,30 @@ const AddOrEditStyles = StyleSheet.create({
 
 const AddOrEditUserRecipe = ( {route, navigation} ) => {
     const {cache, setCache} = useContext(CacheContext);
-    const [recipe, setRecipe] = useState(route.params?.recipe ? route.params?.recipe : {});
-    const [addSteps, setAddSteps] = useState(!route.params?.recipe || route.params?.recipe.steps ? true : false);
-    const [steps, setSteps] = useState(route.params?.recipe?.steps ? JSON.parse(route.params?.recipe.steps) : Array(1).fill(null));
-    const [addIngredients, setAddIngredients] = useState(!route.params?.recipe || route.params?.recipe.ingredients ? true : false);
-    const [ingredients, setIngredients] = useState(route.params?.recipe?.ingredients ? route.params?.recipe.ingredients : Array(1).fill(null));
+    // `recipe`: editing an existing recipe. `prefill`: a new recipe imported from a
+    // link (see RecipeImport), shaped { name, description, ingredients, steps, image, ease }.
+    const prefill = route.params?.prefill;
+    const initialRecipe = route.params?.recipe ?? (prefill ? {
+        name: prefill.name,
+        description: prefill.description,
+        ease: prefill.ease,
+        ingredients: prefill.ingredients?.length ? prefill.ingredients : null,
+        steps: prefill.steps?.length ? prefill.steps : null,
+        image_uri: prefill.image
+    } : undefined);
+    const [recipe, setRecipe] = useState(initialRecipe ? {...initialRecipe} : {});
+    const initialSteps = toTextList(initialRecipe?.steps);
+    const initialIngredients = toTextList(initialRecipe?.ingredients);
+    const [addSteps, setAddSteps] = useState(!initialRecipe || Boolean(initialSteps));
+    const [steps, setSteps] = useState(initialSteps?.length ? initialSteps : [null]);
+    const [addIngredients, setAddIngredients] = useState(!initialRecipe || Boolean(initialIngredients));
+    const [ingredients, setIngredients] = useState(initialIngredients?.length ? initialIngredients : [null]);
     const [validationFailed, setValidationFailed] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const height = useHeaderHeight();
     const styles = useStyles();
     const { assets, colours } = useTheme();
-    const mealTypesList = [
-        {id: 0, name: "Breakfast", selected: false},
-        {id: 1, name: "Lunch", selected: false},
-        {id: 2, name: "Dinner", selected: false}
-    ];
+    const mealTypesList = MEAL_TYPES.map((x) => ({...x, selected: false}));
     const convertMealTypes = (meals) => {
         const mealTypes = mealTypesList.map((x) => {
             return {
@@ -54,7 +63,7 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
             return mealTypes
     }
     const [mealTypes, setMealTypes] = useState(route.params?.recipe?.meals ? convertMealTypes(route.params?.recipe?.meals) : mealTypesList);
-    const [image, setImage] = useState(route.params?.recipe?.image_uri ? route.params?.recipe?.image_uri : null);
+    const [image, setImage] = useState(initialRecipe?.image_uri ?? null);
     const [newImageUri, setNewImageUri] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [validationMessage, setValidationMessage] = useState('Something went wrong');
@@ -62,9 +71,7 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
     const session = useContext(AuthContext);
 
     const changeRecipeProperty = (prop, newValue) => {
-        const recipeCopy = recipe;
-        recipeCopy[prop] = newValue;
-        setRecipe(recipeCopy);
+        setRecipe((current) => ({...current, [prop]: newValue}));
     }
 
     const addStep = () => {
@@ -103,10 +110,9 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
     }
 
     const onMultiselectChange = (id) => {
-        const temp = [...mealTypes];
-        const index = temp.findIndex((x) => x.id === id);
-        temp[index].selected = !temp[index].selected;
-        setMealTypes(temp);
+        setMealTypes((current) => current.map((x) => (
+            x.id === id ? {...x, selected: !x.selected} : x
+        )));
     }
     const validateDropdown = (value) => {
         if (value == null || value == undefined) {return false} else {return true}
@@ -117,7 +123,7 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
             mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [3, 4],
-            quality: 1,
+            quality: 0.7,
             base64: true
         })
 
@@ -134,17 +140,17 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
 
     const uploadImage = async (pickedImageBase64) => {
         setUploadingImage(true)
-        const recipe_file_path = uuid.v4() + '.png'
-        console.log(recipe_file_path)
-        const {data, error} = await supabase.storage.from('recipe-images').upload(recipe_file_path, decode(pickedImageBase64), {
-            contentType: 'image/*',
+        const recipe_file_path = uuid.v4() + '.jpg'
+        const {error} = await supabase.storage.from('recipe-images').upload(recipe_file_path, decode(pickedImageBase64), {
+            contentType: 'image/jpeg',
             upsert: true
         }
         )
         if (error) {
             console.log("error with image upload", error)
+            setImage(newImageUri || initialRecipe?.image_uri || null)
+            showError('Image upload failed. Please try again.')
         } else {
-            console.log("wahoo", data);
             getAndSetFullUri(recipe_file_path);
         }
         setUploadingImage(false);
@@ -175,70 +181,82 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
         }
     }
 
+    const [deleting, setDeleting] = useState(false);
+
+    // Deleting also removes the recipe from meal plans and history (cascade).
+    const confirmDelete = () => Alert.alert(
+        `Delete ${recipe.name}?`,
+        'It will also be removed from your meal plans and meal history. This can\'t be undone.',
+        [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    setDeleting(true);
+                    const { error } = await supabase.from('recipes').delete().eq('id', recipe.recipe_id);
+                    setDeleting(false);
+                    if (error) {
+                        console.log(error);
+                        Alert.alert('Something went wrong', 'Could not delete this recipe. Please try again.');
+                        return;
+                    }
+                    setCache(Date.now());
+                    navigation.navigate('Recipes');
+                }
+            }
+        ]
+    );
+
+    const showError = (message) => {
+        setValidationMessage(message);
+        setValidationFailed(true);
+        setTimeout(() => setValidationFailed(false), 4000);
+    }
+
     const onSubmit = () => {
+        if (submitting) return;
         if (!validate()) {
             setValidationFailed(true);
             setTimeout(() => setValidationFailed(false), 4000);
         } else {
             setValidationFailed(false);
-            recipe.recipe_id ? update() : insert();
+            save();
         }
     }
 
-    const insert = async () => {
+    const save = async () => {
         setSubmitting(true);
-        const stepsJSON = addSteps ? steps : null
-        const ingredientsJSON = addIngredients ? ingredients : null;
-        const meals = mealTypes.filter((x) => x.selected).map((x) => x.id);
-        const imageUri = newImageUri ? newImageUri : image;
-        const data = await supabase
-        .from('recipes')
-        .insert({
+        const fields = {
             name: recipe.name,
-            description: recipe.desc,
+            description: recipe.description,
             ease: recipe.ease,
             cuisine: recipe.cuisine,
             diet: recipe.diet,
-            steps: stepsJSON,
-            ingredients: ingredientsJSON,
-            meals: meals,
-            image_uri: imageUri
-            })
-        .select()
-        data.data[0].recipe_id = data.data[0].id
-        delete data.data[0].id
-        setSubmitting(false)
-        setCache(data.data[0])
-        navigation.navigate('Recipe', {prevScreen: "Recipes", recipe: data.data[0]})
+            steps: addSteps ? steps.filter(Boolean) : null,
+            ingredients: addIngredients ? ingredients.filter(Boolean) : null,
+            meals: mealTypes.filter((x) => x.selected).map((x) => x.id),
+            image_uri: newImageUri ? newImageUri : image
+        };
+        const query = recipe.recipe_id
+            ? supabase.from('recipes').update(fields).eq('id', recipe.recipe_id)
+            : supabase.from('recipes').insert(fields);
+        const { data, error } = await query.select().single();
+        setSubmitting(false);
+        if (error) {
+            console.log("error saving recipe", error);
+            showError('Could not save your recipe. Please try again.');
+            return;
         }
-
-    const update = async () => {
-        setSubmitting(true);
-        const stepsJSON = addSteps ? steps : null
-        const ingredientsJSON = addIngredients ? ingredients : null;
-        const meals = mealTypes.filter((x) => x.selected).map((x) => x.id);
-        const imageUri = newImageUri ? newImageUri : image;
-        const data = await supabase
-        .from('recipes')
-        .update({
-            name: recipe.name,
-            description: recipe.desc,
-            ease: recipe.ease,
-            cuisine: recipe.cuisine,
-            diet: recipe.diet,
-            steps: stepsJSON,
-            ingredients: ingredientsJSON,
-            meals: meals,
-            image_uri: imageUri
-            })
-        .eq('id', recipe.recipe_id)
-        .select()
-        data.data[0].recipe_id = data.data[0].id
-        delete data.data[0].id
-        setSubmitting(false)
-        setCache(data.data[0])
-        navigation.navigate('Recipe', {prevScreen: "Recipes", recipe: data.data[0]})
-        }
+        const { id, ...saved } = data;
+        const savedRecipe = { ...saved, recipe_id: id };
+        // Embed for taste-based suggestions in the background; a failure just
+        // leaves it for the backfill, so don't hold up the save.
+        supabase.functions.invoke('embed-recipe', { body: { recipe_id: id } })
+            .then(({ error: embedError }) => { if (embedError) console.log('embed-recipe failed', embedError); });
+        setCache(savedRecipe)
+        navigation.navigate('Recipe', {prevScreen: "Recipes", recipe: savedRecipe})
+    }
 
     return (
         <SafeAreaView style={[styles.container, {paddingTop: recipe.image_uri ? 0 : 90}]}>
@@ -264,6 +282,7 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
             >
             <ScrollView
             contentContainerStyle={{flexGrow: 1}}
+            keyboardShouldPersistTaps="handled"
             >
                 {image ? (
                     <TouchableOpacity
@@ -306,14 +325,12 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
                 defaultValue={recipe.name}
                 onChangeTextProp={(text) => {changeRecipeProperty("name", text)}}
                 label='Name'
-                rerenderTrigger={uploadingImage}
                 />
                 <FLTextInput
                 id="description"
-                defaultValue={recipe.desc}
-                onChangeTextProp={(text) => {changeRecipeProperty("desc", text)}}
+                defaultValue={recipe.description}
+                onChangeTextProp={(text) => {changeRecipeProperty("description", text)}}
                 label='Description (optional)'
-                rerenderTrigger={uploadingImage}
                 />               
                 <Dropdown
                 data={cuisineList}
@@ -375,6 +392,15 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
                     />
                 ) : (<></>)
                 }
+                {recipe.recipe_id ? (
+                    <View style={{alignItems: 'center', marginTop: 24, marginBottom: 40}}>
+                        {deleting ? <ActivityIndicator /> : (
+                            <TouchableOpacity onPress={confirmDelete} accessibilityRole="button" style={{padding: 12}}>
+                                <Text style={{color: '#EF4444', fontSize: 16}}>Delete recipe</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : null}
             </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>

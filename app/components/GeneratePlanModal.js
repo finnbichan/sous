@@ -7,19 +7,11 @@ import { useTheme } from '@react-navigation/native';
 import AppHeaderText from './AppHeaderText';
 import Dropdown from './Dropdown';
 import AppButton from './AppButton';
+import { nextDays, parseLocalDate } from '../utils/dates';
 
 
 const GeneratePlanModal = ({genModalOpen, setGenModalOpen}) => {
-    const createDateArray = () => {
-        let dateArray = [];
-        for(let i = 0; i < 14; i++){
-            let date = new Date();
-            date.setDate(date.getDate() + i)
-            dateArray.push(date.toISOString().slice(0,10))
-        }
-        return dateArray
-    }
-    const dateArray = createDateArray();
+    const dateArray = nextDays(14);
     const [startDate, setStartDate] = useState(dateArray[0]);
     const [endDate, setEndDate] = useState(dateArray[5]);
     const [submitting, setSubmitting] = useState(false);
@@ -132,7 +124,7 @@ const GeneratePlanModal = ({genModalOpen, setGenModalOpen}) => {
                                 value={0}
                                 label="Start date"
                                 data={dateArray.map((date, idx) => {
-                                    const dateObj = new Date(date + 'T00:00:00');
+                                    const dateObj = parseLocalDate(date);
                                     const formatted = dateObj.toLocaleDateString('en-GB', { 
                                         weekday: 'long',
                                         month: 'short', 
@@ -147,7 +139,7 @@ const GeneratePlanModal = ({genModalOpen, setGenModalOpen}) => {
                                 value={5}
                                 label="End date"
                                 data={dateArray.map((date, idx) => {
-                                    const dateObj = new Date(date + 'T00:00:00');
+                                    const dateObj = parseLocalDate(date);
                                     const formatted = dateObj.toLocaleDateString('en-GB', { 
                                         weekday: 'long',
                                         month: 'short',

@@ -11,8 +11,6 @@ const Home = ({navigation}) => {
     const styles = useStyles();
     const session = useContext(AuthContext);
 
-    console.log("home session", session)
-
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
