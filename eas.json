@@ -12,10 +12,7 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
+      "distribution": "internal"
     },
     "preview-apk": {
       "extends": "preview",
