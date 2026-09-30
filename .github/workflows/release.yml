@@ -1,0 +1,155 @@
+name: Publish release
+
+# Publishes an .ipa built by "Build unsigned iOS" as a GitHub Release, with an
+# AltStore source JSON attached. Manual only: nothing is ever published
+# automatically.
+#
+# AltStore source URL (always points at the newest release):
+#   https://github.com/finnbichan/sous/releases/latest/download/altstore-source.json
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run ID of a 'Build unsigned iOS' run (blank = latest successful run)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write   # create the tag and release
+  actions: read     # read runs and download artifacts
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}   # lets gh work without a checkout
+  ARTIFACT_NAME: sous-ios-unsigned
+  APP_NAME: sous
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Choose build run
+        id: run
+        env:
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          RUN_ID="$(echo "$INPUT_RUN_ID" | tr -d '[:space:]')"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --workflow ios.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            if [ -z "$RUN_ID" ]; then
+              echo "::error::No successful 'Build unsigned iOS' run found. Run that workflow first."
+              exit 1
+            fi
+            echo "Using latest successful build: run $RUN_ID"
+          elif ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::run_id must be a number (the digits at the end of the run's URL), got '$RUN_ID'."
+            exit 1
+          fi
+
+          if ! gh run view "$RUN_ID" --json workflowName,conclusion,headSha > run.json 2>/dev/null; then
+            echo "::error::Run $RUN_ID doesn't exist in $GH_REPO."
+            exit 1
+          fi
+          WORKFLOW=$(jq -r .workflowName run.json)
+          CONCLUSION=$(jq -r .conclusion run.json)
+          if [ "$WORKFLOW" != "Build unsigned iOS" ]; then
+            echo "::error::Run $RUN_ID is a '$WORKFLOW' run, not 'Build unsigned iOS'."
+            exit 1
+          fi
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::error::Run $RUN_ID didn't succeed (conclusion: ${CONCLUSION:-still running})."
+            exit 1
+          fi
+
+          if gh release view "build-$RUN_ID" >/dev/null 2>&1; then
+            echo "::error::Release build-$RUN_ID already exists."
+            exit 1
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(jq -r .headSha run.json)" >> "$GITHUB_OUTPUT"
+
+      # Artifacts are kept 30 days (see ios.yml); give a clear error once gone.
+      - name: Check artifact
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          EXPIRED=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\") | .expired")
+          if [ -z "$EXPIRED" ]; then
+            echo "::error::Run $RUN_ID has no '$ARTIFACT_NAME' artifact."
+            exit 1
+          fi
+          if [ "$EXPIRED" = "true" ]; then
+            echo "::error::The .ipa from run $RUN_ID has expired. Run 'Build unsigned iOS' again and publish the new run."
+            exit 1
+          fi
+
+      - name: Download .ipa
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          gh run download "$RUN_ID" --name "$ARTIFACT_NAME" --dir dist
+          ls -l dist
+
+      # AltStore requires the source to list the app's exact entitlements and
+      # privacy keys; build-info.json carries them from the build.
+      - name: Write AltStore source JSON
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          python3 - > dist/altstore-source.json <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          repo, run_id, app = os.environ["GH_REPO"], os.environ["RUN_ID"], os.environ["APP_NAME"]
+          info = json.load(open("dist/build-info.json"))
+          version = {
+              "version": info["version"],
+              "buildVersion": info["buildVersion"],
+              "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "downloadURL": f"https://github.com/{repo}/releases/download/build-{run_id}/{app}.ipa",
+              "size": os.path.getsize(f"dist/{app}.ipa"),
+              "localizedDescription": f"Build {info['buildVersion']} (GitHub Actions run {run_id}).",
+          }
+          if info.get("minOSVersion"):
+              version["minOSVersion"] = info["minOSVersion"]
+          source = {
+              "name": "Sous",
+              "subtitle": "Your personal meal planning assistant.",
+              "apps": [{
+                  "name": info["name"] or app,
+                  "bundleIdentifier": info["bundleIdentifier"],
+                  "developerName": os.environ["OWNER"],
+                  "subtitle": "Your personal meal planning assistant.",
+                  "localizedDescription": "Plan meals, generate shopping lists and share them with your household.",
+                  "iconURL": f"https://raw.githubusercontent.com/{repo}/main/assets/icon.png",
+                  "category": "lifestyle",
+                  "versions": [version],
+                  "appPermissions": {
+                      "entitlements": info["entitlements"],
+                      "privacy": info["privacy"],
+                  },
+              }],
+              "news": [],
+          }
+          print(json.dumps(source, indent=2))
+          PY
+          cat dist/altstore-source.json
+
+      - name: Create release
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          HEAD_SHA: ${{ steps.run.outputs.head_sha }}
+        run: |
+          VERSION=$(jq -r '.version + " (build " + .buildVersion + ")"' dist/build-info.json)
+          gh release create "build-$RUN_ID" \
+            "dist/$APP_NAME.ipa" \
+            dist/altstore-source.json \
+            --target "$HEAD_SHA" \
+            --title "Sous $VERSION" \
+            --latest \
+            --notes "Unsigned iOS build from run [$RUN_ID](https://github.com/$GH_REPO/actions/runs/$RUN_ID), commit $HEAD_SHA.
+
+          Install with AltStore Classic: open **$APP_NAME.ipa** in AltStore, or add this source once to get updates:
+          https://github.com/$GH_REPO/releases/latest/download/altstore-source.json"
