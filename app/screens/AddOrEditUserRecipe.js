@@ -1,4 +1,4 @@
-import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet } from 'react-native';
+import { Text, SafeAreaView, View, TouchableOpacity, Platform, ActivityIndicator, Switch, ScrollView, KeyboardAvoidingView, Image, StyleSheet, Alert } from 'react-native';
 import React, { useState, useEffect, useLayoutEffect, useContext } from 'react';
 import useStyles from '../styles/Common';
 import Dropdown from '../components/Dropdown';
@@ -180,6 +180,33 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
             return true
         }
     }
+
+    const [deleting, setDeleting] = useState(false);
+
+    // Deleting also removes the recipe from meal plans and history (cascade).
+    const confirmDelete = () => Alert.alert(
+        `Delete ${recipe.name}?`,
+        'It will also be removed from your meal plans and meal history. This can\'t be undone.',
+        [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    setDeleting(true);
+                    const { error } = await supabase.from('recipes').delete().eq('id', recipe.recipe_id);
+                    setDeleting(false);
+                    if (error) {
+                        console.log(error);
+                        Alert.alert('Something went wrong', 'Could not delete this recipe. Please try again.');
+                        return;
+                    }
+                    setCache(Date.now());
+                    navigation.navigate('Recipes');
+                }
+            }
+        ]
+    );
 
     const showError = (message) => {
         setValidationMessage(message);
@@ -365,6 +392,15 @@ const AddOrEditUserRecipe = ( {route, navigation} ) => {
                     />
                 ) : (<></>)
                 }
+                {recipe.recipe_id ? (
+                    <View style={{alignItems: 'center', marginTop: 24, marginBottom: 40}}>
+                        {deleting ? <ActivityIndicator /> : (
+                            <TouchableOpacity onPress={confirmDelete} accessibilityRole="button" style={{padding: 12}}>
+                                <Text style={{color: '#EF4444', fontSize: 16}}>Delete recipe</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : null}
             </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
