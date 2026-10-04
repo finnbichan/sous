@@ -5,7 +5,6 @@ import { supabase } from '../../supabase';
 import AppHeaderText from './AppHeaderText';
 import useStyles from '../styles/Common';
 import { useTheme } from '@react-navigation/native';
-import { useNavigation } from '@react-navigation/native';
 import GeneratePlanModal from './GeneratePlanModal';
 
 const CalendarHeader = () => {
@@ -13,7 +12,6 @@ const CalendarHeader = () => {
     const styles = useStyles();
     const { colours, assets } = useTheme();
     const { profile } = useContext(ProfileContext);
-    const navigation = useNavigation();
     const { cache } = useContext(CacheContext);
     const [sharedWith, setSharedWith] = useState(null);
 
@@ -40,15 +38,6 @@ const CalendarHeader = () => {
             <View style={headerStyles.container}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 8}}>
                     <AppHeaderText>{profile?.display_name ? `${greeting}, ${profile.display_name}` : greeting}</AppHeaderText>
-                    <TouchableOpacity
-                    style={headerStyles.accountButton}
-                    onPress={() => navigation.openDrawer()}
-                    >
-                        <Image
-                        style={headerStyles.accountImage}
-                        source={assets.account}
-                        />
-                    </TouchableOpacity>
                 </View>
                 <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
                     <View>
@@ -80,15 +69,6 @@ const headerStyles = StyleSheet.create({
     container: {
         marginTop: 4,
         marginRight: 4
-    },
-    accountButton: {
-        padding: 6,
-        borderRadius: 999
-    },
-    accountImage: {
-        width: 40,
-        height: 40,
-        borderRadius: 16
     },
     greeting: {
         fontSize: 20,

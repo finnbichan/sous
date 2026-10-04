@@ -5,7 +5,7 @@ import { supabase } from '../../supabase';
 import { AuthContext, CacheContext } from '../../Contexts';
 import useStyles from '../styles/Common';
 import AppHeaderText from '../components/AppHeaderText';
-import FloatingDrawerButton from '../components/FloatingDrawerButton';
+import AccountBackButton from '../components/AccountBackButton';
 import CollapsibleSection from '../components/CollapsibleSection';
 import MealPlan from '../components/MealPlan';
 import MealPlanSummary from '../components/MealPlanSummary';
@@ -170,7 +170,7 @@ const MealHistory = ({ navigation }) => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <FloatingDrawerButton />
+            <AccountBackButton />
             <View style={[styles.content, { width: '100%', alignItems: 'flex-start', paddingHorizontal: 8, paddingTop: 10 }]}>
                 <AppHeaderText>Meal History</AppHeaderText>
                 {loading ? (

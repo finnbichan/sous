@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import { NavigationContainer, useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createDrawerNavigator, DrawerToggleButton} from '@react-navigation/drawer';
 import { HeaderBackButton } from '@react-navigation/elements';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image, useColorScheme, View, ActivityIndicator } from 'react-native';
@@ -39,9 +38,9 @@ function unmountOnBlur(Component) {
 const RecipeScreen = unmountOnBlur(Recipe);
 const AddOrEditRecipeScreen = unmountOnBlur(AddOrEditUserRecipe);
 
-const Stack = createNativeStackNavigator();
+const hiddenTab = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' } };
 
-const LoggedInDrawer = createDrawerNavigator();
+const Stack = createNativeStackNavigator();
 
 const MainAppTabs = createBottomTabNavigator();
 
@@ -61,9 +60,7 @@ function LeftButton() {
       <HeaderBackButton tintColor={colours.text} onPress={() => navigation.navigate(prevScreen, {prevScreen: 'Your recipes', recipe: route.params.recipe})} />
     :
       <HeaderBackButton tintColor={colours.text} onPress={() => navigation.navigate(prevScreen)} />
-  ) : (
-    <DrawerToggleButton tintColor={colours.text}/>
-  )
+  ) : null
 )
 }
 
@@ -150,14 +147,8 @@ function TabsStack() {
         }
       }}
       />
-      <MainAppTabs.Screen name="Add a recipe" component={AddOrEditRecipeScreen} options={{
-        tabBarButton: () => null,
-        tabBarItemStyle: { display: 'none' }
-      }} />
-      <MainAppTabs.Screen name="Recipe" component={RecipeScreen} options={{
-        tabBarButton: () => null,
-        tabBarItemStyle: { display: 'none' }
-      }} />
+      <MainAppTabs.Screen name="Add a recipe" component={AddOrEditRecipeScreen} options={hiddenTab} />
+      <MainAppTabs.Screen name="Recipe" component={RecipeScreen} options={hiddenTab} />
       <MainAppTabs.Screen name="List" component={List} options={{
         tabBarIcon: ({focused}) => {
           return (
@@ -175,6 +166,17 @@ function TabsStack() {
           )
         }
       }}/>
+      <MainAppTabs.Screen name="Account" component={Settings} options={{
+        tabBarIcon: ({focused}) => (
+          <Image
+          style={{width: 25, height: 25, tintColor: focused ? colours.text : colours.secondaryText}}
+          source={assets.account}
+          />
+        )
+      }}/>
+      {/* Opened from the Account tab */}
+      <MainAppTabs.Screen name="Profile" component={Profile} options={hiddenTab} />
+      <MainAppTabs.Screen name="Meal History" component={MealHistory} options={hiddenTab} />
     </MainAppTabs.Navigator>
   );
 }
@@ -190,24 +192,12 @@ function LoggedInStack({ route }) {
 };
 
 function MainStack() {
-  const { assets, colours } = useTheme();
   const [cache, setCache] = useState();
 
   return (
     <CacheContext.Provider value={{cache, setCache}}>
-        <LoggedInDrawer.Navigator
-        screenOptions={{
-          drawerStyle: {backgroundColor: colours.card},
-          drawerLabelStyle: {color: colours.text},
-          drawerActiveBackgroundColor: '#00AEFF',
-          drawerPosition: 'right'
-        }}>
-          <LoggedInDrawer.Screen name="sous" component={TabsStack} options={{headerShown: false, title: 'Home'}}/>
-          <LoggedInDrawer.Screen name="Profile" component={Profile} options={{headerShown: false, title: 'Profile & Preferences'}}/>
-          <LoggedInDrawer.Screen name="Meal History" component={MealHistory} options={{headerShown: false}}/>
-          <LoggedInDrawer.Screen name="Settings" component={Settings} options={{headerShown: false}}/>
-        </LoggedInDrawer.Navigator>
-      </CacheContext.Provider>
+      <TabsStack />
+    </CacheContext.Provider>
   )
 };
 

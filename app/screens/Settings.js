@@ -1,14 +1,13 @@
 import { supabase } from '../../supabase';
-import { View, Text, Pressable, SafeAreaView, Modal, StyleSheet, TextInput, ScrollView, ActivityIndicator } from 'react-native';
-import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, Pressable, SafeAreaView, Modal, StyleSheet, TextInput, ScrollView, ActivityIndicator, Image } from 'react-native';
+import React, { useState, useCallback, useContext } from 'react';
 import useStyles from '../styles/Common';
-import FloatingDrawerButton from '../components/FloatingDrawerButton';
 import AppButton from '../components/AppButton';
 import AppHeaderText from '../components/AppHeaderText';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { CacheContext } from '../../Contexts';
 
-const Settings = () => {
+const Settings = ({ navigation }) => {
     const [inviteModalOpen, setInviteModalOpen] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
     const [emailError, setEmailError] = useState('');
@@ -17,7 +16,7 @@ const Settings = () => {
     const [sharingError, setSharingError] = useState('');
     const [sharingBusy, setSharingBusy] = useState(false);
     const { setCache } = useContext(CacheContext);
-    const { colours } = useTheme();
+    const { colours, assets } = useTheme();
     const styles = useStyles();
 
     // status: 0 = pending, 1 = accepted (get_invites only returns these)
@@ -46,9 +45,10 @@ const Settings = () => {
         setLoadingInvites(false);
     };
 
-    useEffect(() => {
+    // The Account tab stays mounted, so refresh invites each time it's opened.
+    useFocusEffect(useCallback(() => {
         fetchInvites();
-    }, []);
+    }, []));
 
     // accept_invite / reject_invite / remove_sharing all take the invite id
     const runSharingAction = async (rpc, inviteId) => {
@@ -184,6 +184,21 @@ const Settings = () => {
             paddingVertical: 8,
             paddingHorizontal: 8
         },
+        menuRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: colours.card,
+            borderRadius: 8,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            marginHorizontal: 8,
+            marginBottom: 8
+        },
+        menuRowText: {
+            color: colours.text,
+            fontSize: 18
+        },
         smallButtonText: {
             color: colours.text,
             fontSize: 12,
@@ -239,9 +254,22 @@ const Settings = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <AppHeaderText>Settings</AppHeaderText>
-            <FloatingDrawerButton />
+            <AppHeaderText>Account</AppHeaderText>
             <ScrollView contentContainerStyle={{ paddingVertical: 20, alignItems: 'center' }}>
+                <View style={settingsStyles.section}>
+                    {[['Profile & preferences', 'Profile'], ['Meal history', 'Meal History']].map(([label, screen]) => (
+                        <Pressable
+                            key={screen}
+                            style={settingsStyles.menuRow}
+                            onPress={() => navigation.navigate(screen)}
+                            accessibilityRole="button"
+                            accessibilityLabel={label}
+                        >
+                            <Text style={settingsStyles.menuRowText}>{label}</Text>
+                            <Image style={{ width: 24, height: 24 }} source={assets.chevron_right} />
+                        </Pressable>
+                    ))}
+                </View>
                 {/* Sharing Settings Section */}
                 <View style={settingsStyles.section}>
                     <Text style={settingsStyles.sectionTitle}>Sharing</Text>

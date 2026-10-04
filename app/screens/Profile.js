@@ -4,7 +4,7 @@ import { useTheme } from '@react-navigation/native';
 import useStyles from '../styles/Common';
 import AppHeaderText from '../components/AppHeaderText';
 import AppButton from '../components/AppButton';
-import FloatingDrawerButton from '../components/FloatingDrawerButton';
+import AccountBackButton from '../components/AccountBackButton';
 import FLTextInput from '../components/FloatingLabelInput';
 import Dropdown from '../components/Dropdown';
 import Ingredients from '../components/Ingredients';
@@ -119,7 +119,7 @@ const Profile = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <FloatingDrawerButton />
+            <AccountBackButton />
             <KeyboardAvoidingView
                 style={{ flex: 1, width: '100%' }}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
