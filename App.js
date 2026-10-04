@@ -268,7 +268,7 @@ export default function App() {
     const loadProfile = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('display_name, avatar_url, dietary, allergies, dislikes, portion_size')
+        .select('display_name, avatar_url, dietary, allergies, dislikes, portion_size, preferred_breakfast_recipe_id, preferred_breakfast_days')
         .eq('id', userId)
         .abortSignal(controller.signal)
         .maybeSingle()
